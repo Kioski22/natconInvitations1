@@ -16,12 +16,6 @@ if ($result_companies->num_rows > 0) {
         $companies[] = $row;
     }
 }
-
-// Get SOA Released count (sample query, modify based on your actual soa_sequence table)
-$sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
-$result_soa = $conn->query($sql_soa);
-$row_soa = $result_soa->fetch_assoc();
-$total_soa = $row_soa['total_soa'];
 ?>
 
 <!DOCTYPE html>
@@ -50,11 +44,10 @@ $total_soa = $row_soa['total_soa'];
 <div class="sidebar">
     <h4 class="text-center">Admin Panel</h4>
     <hr style="background: white;">
-    <a href="javascript:void(0);" onclick="showTab('dashboard')" class="active-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
-    <a href="javascript:void(0);" onclick="showTab('individual')"><i class="bi bi-person-lines-fill"></i> Individual</a>
-    <a href="javascript:void(0);" onclick="showTab('company')"><i class="bi bi-building"></i> Company</a>
-    <a href="javascript:void(0);" onclick="showTab('soaGenerator')"><i class="bi bi-file-earmark-pdf"></i> SOA Generator</a>
-    <a href="javascript:void(0);" onclick="showTab('soaReleased')"><i class="bi bi-check-circle"></i> SOA Released</a>
+    <a href="javascript:void(0);" onclick="showTab('dashboardTab')" class="active-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    <a href="javascript:void(0);" onclick="showTab('individualTab')"><i class="bi bi-person-lines-fill"></i> Individual</a>
+    <a href="javascript:void(0);" onclick="showTab('companyTab')"><i class="bi bi-building"></i> Company</a>
+    <a href="javascript:void(0);" onclick="showTab('soaGeneratorTab')"><i class="bi bi-file-earmark-pdf"></i> SOA Generator</a>
 </div>
 
 <div class="content">
@@ -114,112 +107,69 @@ $total_soa = $row_soa['total_soa'];
     </div>
 
     <!-- SOA Generator Tab -->
-    <div id="soaGeneratorTab" style="display:none;">
-        <h4>Manual SOA Generator</h4>
-        <form action="generate_soa_manual.php" method="POST" target="_blank">
-            <div class="mb-3">
-                <label>Select Company</label>
-                <select name="company" id="companySelect" class="form-select" required>
-                    <option value="" disabled selected>Select company</option>
-                    <?php foreach ($companies as $comp): ?>
-                        <option value="<?= htmlspecialchars($comp['company']) ?>" data-address="<?= htmlspecialchars($comp['address']) ?>">
-                            <?= htmlspecialchars($comp['company']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="mb-3">
-                <label>Address</label>
-                <input type="text" name="address" id="companyAddress" class="form-control" readonly required>
-            </div>
-
-            <div class="mb-3">
-                <label>TIN</label>
-                <input type="text" name="tin" class="form-control" placeholder="Enter TIN">
-            </div>
-
-            <div class="mb-3">
-                <label>Business Style</label>
-                <input type="text" name="business_style" class="form-control" placeholder="Enter business style">
-            </div>
-
-            <div class="mb-3">
-                <label>Particulars</label>
-                <textarea name="particulars" class="form-control" rows="2" placeholder="Enter particulars"></textarea>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-bordered" id="participantsTable">
-                    <thead class="table-primary">
-                        <tr>
-                            <th>No.</th>
-                            <th>Item No.</th>
-                            <th>Participant Name</th>
-                            <th>Type of Membership</th>
-                            <th>Registration Fee</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Generate SOA PDF</button>
-        </form>
-    </div>
-
-    <!-- SOA Released Tab -->
-    <div id="soaReleasedTab" style="display:none;">
-        <h4>SOA Released</h4>
-        <div class="card text-white bg-primary mb-3">
-            <div class="card-header"><i class="bi bi-check-circle"></i> SOA Released</div>
-            <div class="card-body text-center">
-                <h1><?= $total_soa ?></h1>
-                <p>Total SOAs released</p>
-            </div>
+<div id="soaGeneratorTab" style="display:none;">
+    <h4>Manual SOA Generator</h4>
+    <form action="generate_soa_manual.php" method="POST" target="_blank">
+        <div class="mb-3">
+            <label>Select Company</label>
+            <select name="company" id="companySelect" class="form-select" required>
+                <option value="" disabled selected>Select company</option>
+                <?php foreach ($companies as $comp): ?>
+                    <option value="<?= htmlspecialchars($comp['company']) ?>" data-address="<?= htmlspecialchars($comp['address']) ?>">
+                        <?= htmlspecialchars($comp['company']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </div>
 
-        <!-- Sample table of released SOAs -->
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>SOA Number</th>
-                    <th>Date Released</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php
-            $sql = "SELECT soa_number, created_at FROM soa_sequence ORDER BY id DESC";
-            $result = $conn->query($sql);
-            if ($result->num_rows > 0):
-                while($row = $result->fetch_assoc()):
-            ?>
-                <tr>
-                    <td><?= htmlspecialchars($row['soa_number']) ?></td>
-                    <td><?= htmlspecialchars($row['created_at']) ?></td>
-                </tr>
-            <?php endwhile; else: ?>
-                <tr><td colspan="2" class="text-center">No SOA released records found.</td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+        <div class="mb-3">
+            <label>Address</label>
+            <input type="text" name="address" id="companyAddress" class="form-control" readonly required>
+        </div>
 
+        <div class="mb-3">
+            <label>TIN</label>
+            <input type="text" name="tin" class="form-control" placeholder="Enter TIN">
+        </div>
+
+        <div class="mb-3">
+            <label>Business Style</label>
+            <input type="text" name="business_style" class="form-control" placeholder="Enter business style">
+        </div>
+
+        <div class="mb-3">
+            <label>Particulars</label>
+            <textarea name="particulars" class="form-control" rows="2" placeholder="Enter particulars"></textarea>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered" id="participantsTable">
+                <thead class="table-primary">
+                    <tr>
+                        <th>No.</th>
+                        <th>Item No.</th>
+                        <th>Participant Name</th>
+                        <th>Type of Membership</th>
+                        <th>Registration Fee</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Generate SOA PDF</button>
+    </form>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-function showTab(tab) {
-    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'soaGeneratorTab', 'soaReleasedTab'];
-    tabs.forEach(id => document.getElementById(id).style.display = (id === tab + 'Tab') ? 'block' : 'none');
+function showTab(tabId) {
+    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'soaGeneratorTab'];
+    tabs.forEach(id => document.getElementById(id).style.display = (id === tabId) ? 'block' : 'none');
 
-    const links = document.querySelectorAll('.sidebar a');
-    links.forEach(link => link.classList.remove('active-link'));
-    links.forEach(link => {
-        if (link.getAttribute('onclick').includes(tab)) {
-            link.classList.add('active-link');
-        }
+    document.querySelectorAll('.sidebar a').forEach(link => {
+        link.classList.toggle('active-link', link.getAttribute('onclick').includes(tabId.replace('Tab','')));
     });
 }
 
