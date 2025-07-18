@@ -22,6 +22,22 @@ $sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
 $result_soa = $conn->query($sql_soa);
 $row_soa = $result_soa->fetch_assoc();
 $total_soa = $row_soa['total_soa'];
+
+// Fetch companies with released SOAs
+$sql_companies_released = "
+    SELECT company, COUNT(*) as total_soa
+    FROM soa_sequence
+    WHERE company IS NOT NULL AND company != ''
+    GROUP BY company
+    ORDER BY total_soa DESC, company
+";
+$result_companies_released = $conn->query($sql_companies_released);
+$companies_released = [];
+if ($result_companies_released && $result_companies_released->num_rows > 0) {
+    while ($row = $result_companies_released->fetch_assoc()) {
+        $companies_released[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -181,7 +197,7 @@ $total_soa = $row_soa['total_soa'];
         </div>
 
         <!-- Sample table of released SOAs -->
-        <table class="table table-bordered">
+        <table class="table table-bordered" id="soaReleasedTable">
             <thead>
                 <tr>
                     <th>SOA Number</th>
@@ -204,7 +220,12 @@ $total_soa = $row_soa['total_soa'];
             <?php endif; ?>
             </tbody>
         </table>
+        <!-- Pagination for SOA Released Table -->
+        <div id="soaReleasedPagination" class="mt-3"></div>
     </div>
+
+    <!-- Pagination for Individual Invitations Table -->
+    <div id="tablePagination" class="mt-3"></div>
 
 </div>
 
@@ -276,6 +297,112 @@ function updateMembershipType(select){
     const membership = mapping[select.value] || '';
     $(select).closest('tr').find('input[name="membership_type[]"]').val(membership);
 }
+
+$(document).ready(function(){
+    // Pagination for Individual Invitations Table
+    var rowsPerPage = 10;
+    var $table = $('#individualTab table tbody');
+    var $rows = $table.find('tr');
+    var totalRows = $rows.length;
+    var totalPages = Math.ceil(totalRows / rowsPerPage);
+
+    function showPage(page) {
+        $rows.hide();
+        $rows.slice((page-1)*rowsPerPage, page*rowsPerPage).show();
+        $('#tablePagination li').removeClass('active');
+        $('#tablePagination li[data-page="'+page+'"]').addClass('active');
+    }
+
+    function createPagination() {
+        var $pagination = $('#tablePagination');
+        $pagination.empty();
+        if(totalPages <= 1) return;
+
+        $pagination.append('<li class="page-item" id="prevPage"><a class="page-link" href="#">&lt;</a></li>');
+        for(var i=1; i<=totalPages; i++) {
+            $pagination.append('<li class="page-item" data-page="'+i+'"><a class="page-link" href="#">'+i+'</a></li>');
+        }
+        $pagination.append('<li class="page-item" id="nextPage"><a class="page-link" href="#">&gt;</a></li>');
+        $pagination.find('li[data-page="1"]').addClass('active');
+    }
+
+    createPagination();
+    showPage(1);
+
+    $('#tablePagination').on('click', 'li[data-page]', function(e){
+        e.preventDefault();
+        var page = $(this).data('page');
+        showPage(page);
+    });
+
+    $('#tablePagination').on('click', '#prevPage', function(e){
+        e.preventDefault();
+        var current = $('#tablePagination li.active').data('page');
+        if(current > 1) showPage(current-1);
+    });
+
+    $('#tablePagination').on('click', '#nextPage', function(e){
+        e.preventDefault();
+        var current = $('#tablePagination li.active').data('page');
+        if(current < totalPages) showPage(current+1);
+    });
+
+    // Pagination for SOA Released Table
+    var soaRowsPerPage = 10;
+    var $soaTable = $('#soaReleasedTable tbody');
+    var $soaRows = $soaTable.find('tr');
+    var soaTotalRows = $soaRows.length;
+    var soaTotalPages = Math.ceil(soaTotalRows / soaRowsPerPage);
+
+    function createSOAPagination() {
+        var $pagination = $('#soaReleasedPagination');
+        $pagination.empty();
+        if(soaTotalPages <= 1) return;
+
+        // Add Bootstrap pagination classes and some spacing
+        $pagination.addClass('d-flex justify-content-center');
+        $pagination.append('<ul class="pagination pagination-sm mb-0">');
+        var $ul = $pagination.find('ul');
+
+        $ul.append('<li class="page-item" id="soaPrevPage"><a class="page-link" href="#">&lt;</a></li>');
+        for(var i=1; i<=soaTotalPages; i++) {
+            $ul.append('<li class="page-item" data-page="'+i+'"><a class="page-link" href="#">'+i+'</a></li>');
+        }
+        $ul.append('<li class="page-item" id="soaNextPage"><a class="page-link" href="#">&gt;</a></li>');
+        $ul.find('li[data-page="1"]').addClass('active');
+    }
+
+    function showSOAPage(page) {
+        $soaRows.hide();
+        $soaRows.slice((page-1)*soaRowsPerPage, page*soaRowsPerPage).show();
+        $('#soaReleasedPagination li').removeClass('active');
+        $('#soaReleasedPagination li[data-page="'+page+'"]').addClass('active');
+        // Disable prev/next at ends
+        $('#soaReleasedPagination #soaPrevPage').toggleClass('disabled', page === 1);
+        $('#soaReleasedPagination #soaNextPage').toggleClass('disabled', page === soaTotalPages);
+    }
+
+    createSOAPagination();
+    showSOAPage(1);
+
+    $('#soaReleasedPagination').on('click', 'li[data-page]', function(e){
+        e.preventDefault();
+        var page = $(this).data('page');
+        showSOAPage(page);
+    });
+
+    $('#soaReleasedPagination').on('click', '#soaPrevPage', function(e){
+        e.preventDefault();
+        var current = $('#soaReleasedPagination li.active').data('page');
+        if(current > 1) showSOAPage(current-1);
+    });
+
+    $('#soaReleasedPagination').on('click', '#soaNextPage', function(e){
+        e.preventDefault();
+        var current = $('#soaReleasedPagination li.active').data('page');
+        if(current < soaTotalPages) showSOAPage(current+1);
+    });
+});
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

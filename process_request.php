@@ -37,14 +37,13 @@ if ($conn->query($sql) === TRUE) {
     $imgPath1 = realpath('invitation/1.jpg');
     if (!$imgPath1) { die('Page 1 background image not found.'); }
 
-    // Force resize to cover entire page with slight oversize to bleed
     $pdf->Image($imgPath1, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
     
     // Dynamic text placement
     $pdf->SetFont('helvetica', '', 12);
     $pdf->SetTextColor(0,0,0);
 
-    $pdf->SetXY(90, 70.5); // adjust based on your template
+    $pdf->SetXY(90, 70.5);
     $pdf->Write(0, $full_name);
 
     $pdf->SetXY(90, 75.5);
@@ -54,29 +53,11 @@ if ($conn->query($sql) === TRUE) {
     $pdf->Write(0, $company);
 
     $pdf->SetXY(90, 85);
-    $pdf->MultiCell(
-        100,       // width in mm (adjust as needed based on your layout)
-        0,         // height (auto)
-        $address,  // text
-        0,         // border (0 = no border)
-        'L',       // align left
-        false,     // fill
-        1,         // line break after
-        '', '',    // x, y (empty because SetXY used)
-        true,      // reset height
-        0,         // stretch
-        false,     // is HTML
-        true,      // autopadding
-        0,         // max height
-        'T',       // vertical align top
-        false      // fit cell
-    );
+    $pdf->MultiCell(100, 0, $address, 0, 'L', false, 1);
 
-   $pdf->SetFont('helvetica', 'B', 12); // set to Bold, 12pt
+    $pdf->SetFont('helvetica', 'B', 12);
     $pdf->SetXY(71, 96.5);
     $pdf->Write(0, " $full_name,");
-
-    $pdf->SetFont('helvetica', '', 12); // revert to Regular if needed for next text
 
     // -------------------------
     // Page 2
@@ -86,7 +67,6 @@ if ($conn->query($sql) === TRUE) {
     $imgPath2 = realpath('invitation/2.jpg');
     if (!$imgPath2) { die('Page 2 background image not found.'); }
 
-    // Force resize for page 2 as well
     $pdf->Image($imgPath2, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
 
     // -------------------------
@@ -94,8 +74,9 @@ if ($conn->query($sql) === TRUE) {
     // -------------------------
     $pdfOutput = $pdf->Output('', 'S'); // return as string
 
-    // Save PDF to server temporarily
-    $pdfFilePath = __DIR__ . "/invitation_$full_name.pdf";
+    // Save PDF to server temporarily with company name
+    $clean_company_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $company);
+    $pdfFilePath = __DIR__ . "/invitation_{$clean_company_name}.pdf";
     file_put_contents($pdfFilePath, $pdfOutput);
 
     // -------------------------
@@ -115,11 +96,43 @@ if ($conn->query($sql) === TRUE) {
         // Email content
         $mail->setFrom('delegates@psmeinc.org.ph', 'PSME Invitation Team');
         $mail->addAddress($email, $full_name);
-        $mail->Subject = 'Your 73rd PSME NatCon Invitation';
-        $mail->Body = "Dear $full_name,\n\nPlease find attached your personalized invitation to the 73rd PSME National Convention.\n\nBest regards,\nPSME Team";
+        $mail->Subject = '73rd PSME National Convention Official Invitation';
+        $mail->isHTML(true); // Ensure HTML formatting
 
-        // Attach PDF
-        $mail->addAttachment($pdfFilePath, '73rd_NatCon_Invitation.pdf');
+        $mail->Body = "
+        <p>Good day <strong>$full_name</strong>!</p>
+
+        <p>
+        Attached is your official invitation letter to the 73rd PSME National Convention, which will be held on October 15–18, 2025, at the SMX Convention Center, Pasay City.
+        </p>
+
+        <p>
+        Should you need further assistance or any additional documents, feel free to reach out.
+        </p>
+
+        <p>
+        Thank you and we look forward to your participation!
+        </p>
+
+        <p>Sincerely,<br>
+        <strong>Randy Flores</strong><br>
+        IT Specialist<br>
+        <span style='background-color: #004085; color: yellow; font-weight: bold; padding: 2px 4px;'>
+        PHILIPPINE SOCIETY OF MECHANICAL ENGINEERS, INC.
+        </span>
+        </p>
+
+        <p>
+        Should you have any concerns? Let us know, you may contact us at:<br>
+        (02) 7752-2527<br>
+        19 Scout Bayoran St. Brgy, South Triangle, Diliman, Quezon City, Philippines<br>
+        <strong>Email Add.:</strong> delegates@psmeinc.org.ph<br>
+        <strong>Website:</strong> psmeinc.org.ph
+        </p>
+        ";
+        // Attach PDF with company name in filename
+        $attachment_filename = "73rd_NatCon_Invitation_{$clean_company_name}.pdf";
+        $mail->addAttachment($pdfFilePath, $attachment_filename);
 
         if ($mail->send()) {
             // Update status to 'sent'
