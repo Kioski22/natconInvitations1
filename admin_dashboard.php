@@ -12,10 +12,11 @@ $sql_companies = "
     SELECT 
         c.company_id, 
         c.company_name, 
-        c.excel_filename AS address
+        c.company_address,  -- ✅ this line gets the real address
+        c.excel_filename
     FROM companies c
     INNER JOIN delegates d ON c.company_id = d.company_id
-    GROUP BY c.company_id, c.company_name, c.excel_filename
+    GROUP BY c.company_id, c.company_name, c.company_address, c.excel_filename
     ORDER BY c.company_name
 ";
 
@@ -134,7 +135,9 @@ $total_soa = $row_soa['total_soa'];
                 <select name="company_id" id="companySelect" class="form-select" required>
                     <option value="" disabled selected>Select company</option>
                     <?php foreach ($companies as $comp): ?>
-                        <option value="<?= htmlspecialchars($comp['company_id']) ?>">
+                       <option 
+                            value="<?= htmlspecialchars($comp['company_id']) ?>" 
+                            data-address="<?= htmlspecialchars($comp['company_address']) ?>">
                             <?= htmlspecialchars($comp['company_name']) ?>
                         </option>
                     <?php endforeach; ?>
@@ -143,7 +146,7 @@ $total_soa = $row_soa['total_soa'];
 
             <div class="mb-3">
                 <label>Address</label>
-                <input type="text" name="address" id="companyAddress" class="form-control" readonly required>
+                <input type="text" name="company_address" id="companyAddress" class="form-control" readonly required>
             </div>
 
             <div class="mb-3">
@@ -311,6 +314,8 @@ function updateMembershipType(select){
 }
 
 </script>
+
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

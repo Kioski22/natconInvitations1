@@ -7,17 +7,28 @@ $result_sent = $conn->query($sql_sent);
 $row_sent = $result_sent->fetch_assoc();
 $total_sent = $row_sent['total_sent'];
 
-// Fetch companies from database
-$sql_companies = "SELECT DISTINCT company, address FROM invitations WHERE company != '' ORDER BY company";
-$result_companies = $conn->query($sql_companies);
+// ✅ Define SQL for fetching companies
+$sql_companies = "
+    SELECT 
+        c.company_id, 
+        c.company_name, 
+        c.excel_filename AS address
+    FROM companies c
+    INNER JOIN delegates d ON c.company_id = d.company_id
+    GROUP BY c.company_id, c.company_name, c.excel_filename
+    ORDER BY c.company_name
+";
+
+// ✅ Run the query
 $companies = [];
-if ($result_companies->num_rows > 0) {
+$result_companies = $conn->query($sql_companies);
+if ($result_companies && $result_companies->num_rows > 0) {
     while ($row = $result_companies->fetch_assoc()) {
         $companies[] = $row;
     }
 }
 
-// Get SOA Released count (sample query, modify based on your actual soa_sequence table)
+// Get SOA Released count (modify this based on actual table structure)
 $sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
 $result_soa = $conn->query($sql_soa);
 $row_soa = $result_soa->fetch_assoc();
@@ -55,6 +66,7 @@ $total_soa = $row_soa['total_soa'];
     <a href="javascript:void(0);" onclick="showTab('company')"><i class="bi bi-building"></i> Company</a>
     <a href="javascript:void(0);" onclick="showTab('soaGenerator')"><i class="bi bi-file-earmark-pdf"></i> SOA Generator</a>
     <a href="javascript:void(0);" onclick="showTab('soaReleased')"><i class="bi bi-check-circle"></i> SOA Released</a>
+    <a href="logout.php" class="text-white"><i class="bi bi-box-arrow-right"></i> Logout</a>
 </div>
 
 <div class="content">
@@ -119,11 +131,11 @@ $total_soa = $row_soa['total_soa'];
         <form action="generate_soa_manual.php" method="POST" target="_blank">
             <div class="mb-3">
                 <label>Select Company</label>
-                <select name="company" id="companySelect" class="form-select" required>
+                <select name="company_id" id="companySelect" class="form-select" required>
                     <option value="" disabled selected>Select company</option>
                     <?php foreach ($companies as $comp): ?>
-                        <option value="<?= htmlspecialchars($comp['company']) ?>" data-address="<?= htmlspecialchars($comp['address']) ?>">
-                            <?= htmlspecialchars($comp['company']) ?>
+                        <option value="<?= htmlspecialchars($comp['company_id']) ?>">
+                            <?= htmlspecialchars($comp['company_name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -223,59 +235,81 @@ function showTab(tab) {
     });
 }
 
-$(document).ready(function(){
-    $('#companySelect').on('change', function(){
-        var address = $(this).find(':selected').data('address');
-        $('#companyAddress').val(address);
+$('#companySelect').on('change', function(){
+    var address = $(this).find(':selected').data('address');
+    $('#companyAddress').val(address);
 
-        var company = $(this).val();
-        $.ajax({
-            url: 'get_participants.php',
-            type: 'POST',
-            data: {company: company},
-            dataType: 'json',
-            success: function(data){
-                var tbody = $('#participantsTable tbody');
-                tbody.empty();
-                if(data.length > 0){
-                    $.each(data, function(i, name){
-                        tbody.append(
-                            '<tr>' +
-                            '<td>'+(i+1)+'</td>' +
-                            '<td><select name="item_number[]" class="form-select" required onchange="updateMembershipType(this)">' +
-                                '<option value="">Select</option>' +
-                                '<option value="0001">0001</option>' +
-                                '<option value="0002">0002</option>' +
-                                '<option value="0003">0003</option>' +
-                                '<option value="0004">0004</option>' +
-                                '<option value="0005">0005</option>' +
-                            '</select></td>' +
-                            '<td><input type="hidden" name="participants[]" value="'+name+'">'+name+'</td>' +
-                            '<td><input type="text" name="membership_type[]" class="form-control" readonly></td>' +
-                            '<td><input type="number" name="registration_fee[]" step="0.01" class="form-control" required></td>' +
-                            '<td><input type="number" name="amount[]" step="0.01" class="form-control" required></td>' +
-                            '</tr>'
-                        );
-                    });
-                } else {
-                    tbody.append('<tr><td colspan="6" class="text-center">No participants found.</td></tr>');
-                }
+    var company_id = $(this).val(); // use the selected value directly
+
+    $.ajax({
+        url: 'get_participants.php',
+        type: 'POST',
+        data: { company_id: company_id }, // ✅ fixed variable
+        dataType: 'json',
+        success: function(data){
+            var tbody = $('#participantsTable tbody');
+            tbody.empty();
+            if(data.length > 0){
+                $.each(data, function(i, name){
+                    tbody.append(
+                        '<tr>' +
+                        '<td>'+(i+1)+'</td>' +
+                        '<td><select name="item_number[]" class="form-select" required onchange="updateMembershipType(this)">' +
+                            '<option value="">Select</option>' +
+                            '<option value="0001">0001</option>' +
+                            '<option value="0002">0002</option>' +
+                            '<option value="0003">0003</option>' +
+                            '<option value="0004">0004</option>' +
+                            '<option value="0005">0005</option>' +
+                            '<option value="0006">0006</option>' +
+                            '<option value="0007">0007</option>' +
+                            '<option value="0008">0008</option>' +
+                            '<option value="0009">0009</option>' +
+                            '<option value="0010">0010</option>' +
+                            '<option value="0011">0011</option>' +
+                            '<option value="0012">0012</option>' +
+                            '<option value="0013">0013</option>' +
+                            '<option value="0014">0014</option>' +
+                        '</select></td>' +
+                        '<td><input type="hidden" name="participants[]" value="'+name+'">'+name+'</td>' +
+                        '<td><input type="text" name="membership_type[]" class="form-control" readonly></td>' +
+                        '<td><input type="number" name="registration_fee[]" step="0.01" class="form-control" required></td>' +
+                        '<td><input type="number" name="amount[]" step="0.01" class="form-control" required></td>' +
+                        '</tr>'
+                    );
+                });
+            } else {
+                tbody.append('<tr><td colspan="6" class="text-center">No participants found.</td></tr>');
             }
-        });
+        }
     });
 });
 
 function updateMembershipType(select){
     const mapping = {
-        '0001':'Regular Member',
-        '0002':'Reg. Mem. - Senior',
-        '0003':'Reg. Mem. - PWD',
-        '0004':'Life Member',
-        '0005':'Non-Member'
+        '0001': {type: 'Regular Member', price: 3700},
+        '0002': {type: 'Reg. Mem. - Senior', price: 3000},
+        '0003': {type: 'Reg. Mem. - PWD', price: 3000},
+        '0004': {type: 'Life Member', price: 3000},
+        '0005': {type: 'Non-Member', price: 4700},
+        '0006': {type: 'Early Bird Reg. Member', price: 3200},
+        '0007': {type: 'Associate Member', price: 3000},
+        '0008': {type: 'EB Reg. Member with 3-D Meal Package', price: 4700},
+        '0009': {type: 'Non-Member with 3-D Meal Package', price: 6200},
+        '0010': {type: 'New Board Passer', price: 3000},
+        '0011': {type: 'Reg. Mem. - Senior with 3-D Meal Package', price: 4500},
+        '0012': {type: '3-D Meal Package', price: 1500},
+        '0013': {type: 'Life Member with 3-D Meal Package', price: 4500},
+        '0014': {type: 'Regular Member with 3-D Meal Package', price: 5200}
     };
-    const membership = mapping[select.value] || '';
-    $(select).closest('tr').find('input[name="membership_type[]"]').val(membership);
+
+    const data = mapping[select.value] || {type: '', price: ''};
+    const row = $(select).closest('tr');
+    row.find('input[name="membership_type[]"]').val(data.type);
+    row.find('input[name="registration_fee[]"]').val(data.price);
+    row.find('input[name="amount[]"]').val(data.price);
 }
+
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
