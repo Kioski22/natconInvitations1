@@ -39,9 +39,49 @@ $stmt->bind_param("s", $soa_number);
 $stmt->execute();
 
 // Get POST data
-$company = $_POST['company'] ?? '';
-$address = $_POST['address'] ?? '';
-$participants = $_POST['participants'] ?? [];
+$company_id = $_POST['company_id'] ?? '';
+
+$company = '';
+$address = '';
+$participants = [];
+
+if (!empty($company_id)) {
+    // Get company name and address
+    $stmt_company = $conn->prepare("SELECT company_name, company_address FROM companies WHERE company_id = ?");
+    if (!$stmt_company) {
+        die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
+    }
+    $stmt_company->bind_param("i", $company_id);
+    $stmt_company->execute();
+    $result_company = $stmt_company->get_result();
+
+    if ($row = $result_company->fetch_assoc()) {
+        $company = $row['company_name'];
+        $address = $row['company_address'] ?? ''; // assuming you have this column
+    }
+
+    // Get participants from delegates table
+    $stmt_participants = $conn->prepare("SELECT delegates_fname, delegates_mname, delegates_lname, delegates_suffix FROM delegates WHERE company_id = ?");
+    $stmt_participants->bind_param("i", $company_id);
+    $stmt_participants->execute();
+    $result_participants = $stmt_participants->get_result();
+
+    while ($row = $result_participants->fetch_assoc()) {
+        $full_name = $row['delegates_fname'];
+
+        if (!empty($row['delegates_mname'])) {
+            $full_name .= ' ' . $row['delegates_mname'];
+        }
+
+        $full_name .= ' ' . $row['delegates_lname'];
+
+        if (!empty($row['delegates_suffix'])) {
+            $full_name .= ', ' . $row['delegates_suffix'];
+        }
+
+        $participants[] = $full_name;
+    }
+}
 $item_numbers = $_POST['item_number'] ?? [];
 $membership_types = $_POST['membership_type'] ?? [];
 $registration_fees = $_POST['registration_fee'] ?? [];
@@ -61,7 +101,7 @@ $pdf->AddPage();
 $pdf->Image('img/psme_logo.png', 15, 10, 25);
 
 // Add right logo
-$pdf->Image('img/natconlogo.jpg', 170, 10, 25);
+$pdf->Image('img/smart.jpeg', 170, 10, 25);
 
 // Set Y position after logos
 $pdf->SetY(12);
@@ -158,7 +198,7 @@ foreach ($participants as $i => $participant) {
     $pdf->Cell(10, 7, $i + 1, 1, 0, 'C'); // NO.
     $pdf->Cell(20, 7, $item_no, 1, 0, 'C'); // ITEM NO.
     $pdf->Cell(55, 7, $participant, 1, 0, 'L'); // PARTICIPANT NAME
-    $pdf->Cell(38, 7, $membership_type, 1, 0, 'L'); // TYPE OF MEMBERSHIP (use 38mm here to match header)
+    $pdf->MultiCell(38, 7, $membership_type, 1, 'L', false, 0, '', '', true, 0, false, true, 7, 'M');
     $pdf->Cell(35, 7, number_format($registration_fee, 2), 1, 0, 'R'); // REG. FEE
     $pdf->Cell(27, 7, number_format($amount, 2), 1, 1, 'R'); // AMOUNT
 
@@ -249,7 +289,7 @@ $pdf->Ln(5);
 // ---------- Contact Info ----------
 $pdf->SetFont('helvetica', '', 10);
 $pdf->MultiCell(0, 6, 
-    "For any questions or clarifications, please get in touch with Mr. Randy Flores, IT Specialist, at 7752-2527. You can also reach us via email at accounting.natcon@psmeinc.org.ph / delegates@psmeinc.org.ph.", 
+    "For any questions or clarifications, please get in touch with Mr. Jericho Morales, Finance Assistance, at 7752-2527. You can also reach us via email at accounting.natcon@psmeinc.org.ph / delegates@psmeinc.org.ph.", 
     0, 'L', false, 1);
 
 $pdf->Ln(5); // add a small space if desired

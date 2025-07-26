@@ -7,6 +7,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 
 // Get POST data & sanitize
 $email = $conn->real_escape_string($_POST['email']);
+$hr_email = isset($_POST['hr_email']) ? $conn->real_escape_string($_POST['hr_email']) : null;
 $full_name = $conn->real_escape_string($_POST['full_name']);
 $designation = $conn->real_escape_string($_POST['designation']);
 $company = $conn->real_escape_string($_POST['company']);
@@ -89,13 +90,16 @@ if ($conn->query($sql) === TRUE) {
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
         $mail->Username = 'delegates@psmeinc.org.ph';
-        $mail->Password = 'fupz ruif lwzh xclc';
+        $mail->Password = 'bajk ootp unms mhci';
         $mail->SMTPSecure = 'tls';
         $mail->Port = 587;
 
         // Email content
         $mail->setFrom('delegates@psmeinc.org.ph', 'PSME Invitation Team');
         $mail->addAddress($email, $full_name);
+        if ($hr_email) {
+            $mail->addCC($hr_email);
+        }
         $mail->Subject = '73rd PSME National Convention Official Invitation';
         $mail->isHTML(true); // Ensure HTML formatting
 

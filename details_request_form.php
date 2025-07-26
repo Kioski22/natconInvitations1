@@ -129,6 +129,17 @@
                             </div>
 
                             <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm mb-2" id="toggleHrEmail">
+                                    <span id="toggleIcon">＋</span> Add HR Email Address
+                                </button>
+
+                                <div id="hrEmailSection" style="display: none;">
+                                    <label class="form-label">HR Email Address</label>
+                                    <input type="email" name="hr_email" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
                                 <label class="form-label">Full Name</label>
                                 <input type="text" name="full_name" class="form-control" required>
                             </div>
@@ -229,6 +240,16 @@
             });
         });
     });
+    </script>
+
+    <script>
+        $(document).ready(function() {
+            $('#toggleHrEmail').on('click', function() {
+                $('#hrEmailSection').slideToggle();
+                const icon = $('#toggleIcon');
+                icon.text(icon.text() === '＋' ? '−' : '＋');
+            });
+        });
     </script>
 
 </body>

@@ -7,37 +7,32 @@ $result_sent = $conn->query($sql_sent);
 $row_sent = $result_sent->fetch_assoc();
 $total_sent = $row_sent['total_sent'];
 
-// Fetch companies from database
-$sql_companies = "SELECT DISTINCT company, address FROM invitations WHERE company != '' ORDER BY company";
-$result_companies = $conn->query($sql_companies);
+// ✅ Define SQL for fetching companies
+$sql_companies = "
+    SELECT 
+        c.company_id, 
+        c.company_name, 
+        c.excel_filename AS address
+    FROM companies c
+    INNER JOIN delegates d ON c.company_id = d.company_id
+    GROUP BY c.company_id, c.company_name, c.excel_filename
+    ORDER BY c.company_name
+";
+
+// ✅ Run the query
 $companies = [];
-if ($result_companies->num_rows > 0) {
+$result_companies = $conn->query($sql_companies);
+if ($result_companies && $result_companies->num_rows > 0) {
     while ($row = $result_companies->fetch_assoc()) {
         $companies[] = $row;
     }
 }
 
-// Get SOA Released count (sample query, modify based on your actual soa_sequence table)
+// Get SOA Released count (modify this based on actual table structure)
 $sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
 $result_soa = $conn->query($sql_soa);
 $row_soa = $result_soa->fetch_assoc();
 $total_soa = $row_soa['total_soa'];
-
-// Fetch companies with released SOAs
-$sql_companies_released = "
-    SELECT company, COUNT(*) as total_soa
-    FROM soa_sequence
-    WHERE company IS NOT NULL AND company != ''
-    GROUP BY company
-    ORDER BY total_soa DESC, company
-";
-$result_companies_released = $conn->query($sql_companies_released);
-$companies_released = [];
-if ($result_companies_released && $result_companies_released->num_rows > 0) {
-    while ($row = $result_companies_released->fetch_assoc()) {
-        $companies_released[] = $row;
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -71,6 +66,7 @@ if ($result_companies_released && $result_companies_released->num_rows > 0) {
     <a href="javascript:void(0);" onclick="showTab('company')"><i class="bi bi-building"></i> Company</a>
     <a href="javascript:void(0);" onclick="showTab('soaGenerator')"><i class="bi bi-file-earmark-pdf"></i> SOA Generator</a>
     <a href="javascript:void(0);" onclick="showTab('soaReleased')"><i class="bi bi-check-circle"></i> SOA Released</a>
+    <a href="logout.php" class="text-white"><i class="bi bi-box-arrow-right"></i> Logout</a>
 </div>
 
 <div class="content">
@@ -135,11 +131,11 @@ if ($result_companies_released && $result_companies_released->num_rows > 0) {
         <form action="generate_soa_manual.php" method="POST" target="_blank">
             <div class="mb-3">
                 <label>Select Company</label>
-                <select name="company" id="companySelect" class="form-select" required>
+                <select name="company_id" id="companySelect" class="form-select" required>
                     <option value="" disabled selected>Select company</option>
                     <?php foreach ($companies as $comp): ?>
-                        <option value="<?= htmlspecialchars($comp['company']) ?>" data-address="<?= htmlspecialchars($comp['address']) ?>">
-                            <?= htmlspecialchars($comp['company']) ?>
+                        <option value="<?= htmlspecialchars($comp['company_id']) ?>">
+                            <?= htmlspecialchars($comp['company_name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -197,7 +193,7 @@ if ($result_companies_released && $result_companies_released->num_rows > 0) {
         </div>
 
         <!-- Sample table of released SOAs -->
-        <table class="table table-bordered" id="soaReleasedTable">
+        <table class="table table-bordered">
             <thead>
                 <tr>
                     <th>SOA Number</th>
@@ -220,12 +216,7 @@ if ($result_companies_released && $result_companies_released->num_rows > 0) {
             <?php endif; ?>
             </tbody>
         </table>
-        <!-- Pagination for SOA Released Table -->
-        <div id="soaReleasedPagination" class="mt-3"></div>
     </div>
-
-    <!-- Pagination for Individual Invitations Table -->
-    <div id="tablePagination" class="mt-3"></div>
 
 </div>
 
@@ -244,165 +235,81 @@ function showTab(tab) {
     });
 }
 
-$(document).ready(function(){
-    $('#companySelect').on('change', function(){
-        var address = $(this).find(':selected').data('address');
-        $('#companyAddress').val(address);
+$('#companySelect').on('change', function(){
+    var address = $(this).find(':selected').data('address');
+    $('#companyAddress').val(address);
 
-        var company = $(this).val();
-        $.ajax({
-            url: 'get_participants.php',
-            type: 'POST',
-            data: {company: company},
-            dataType: 'json',
-            success: function(data){
-                var tbody = $('#participantsTable tbody');
-                tbody.empty();
-                if(data.length > 0){
-                    $.each(data, function(i, name){
-                        tbody.append(
-                            '<tr>' +
-                            '<td>'+(i+1)+'</td>' +
-                            '<td><select name="item_number[]" class="form-select" required onchange="updateMembershipType(this)">' +
-                                '<option value="">Select</option>' +
-                                '<option value="0001">0001</option>' +
-                                '<option value="0002">0002</option>' +
-                                '<option value="0003">0003</option>' +
-                                '<option value="0004">0004</option>' +
-                                '<option value="0005">0005</option>' +
-                            '</select></td>' +
-                            '<td><input type="hidden" name="participants[]" value="'+name+'">'+name+'</td>' +
-                            '<td><input type="text" name="membership_type[]" class="form-control" readonly></td>' +
-                            '<td><input type="number" name="registration_fee[]" step="0.01" class="form-control" required></td>' +
-                            '<td><input type="number" name="amount[]" step="0.01" class="form-control" required></td>' +
-                            '</tr>'
-                        );
-                    });
-                } else {
-                    tbody.append('<tr><td colspan="6" class="text-center">No participants found.</td></tr>');
-                }
+    var company_id = $(this).val(); // use the selected value directly
+
+    $.ajax({
+        url: 'get_participants.php',
+        type: 'POST',
+        data: { company_id: company_id }, // ✅ fixed variable
+        dataType: 'json',
+        success: function(data){
+            var tbody = $('#participantsTable tbody');
+            tbody.empty();
+            if(data.length > 0){
+                $.each(data, function(i, name){
+                    tbody.append(
+                        '<tr>' +
+                        '<td>'+(i+1)+'</td>' +
+                        '<td><select name="item_number[]" class="form-select" required onchange="updateMembershipType(this)">' +
+                            '<option value="">Select</option>' +
+                            '<option value="0001">0001</option>' +
+                            '<option value="0002">0002</option>' +
+                            '<option value="0003">0003</option>' +
+                            '<option value="0004">0004</option>' +
+                            '<option value="0005">0005</option>' +
+                            '<option value="0006">0006</option>' +
+                            '<option value="0007">0007</option>' +
+                            '<option value="0008">0008</option>' +
+                            '<option value="0009">0009</option>' +
+                            '<option value="0010">0010</option>' +
+                            '<option value="0011">0011</option>' +
+                            '<option value="0012">0012</option>' +
+                            '<option value="0013">0013</option>' +
+                            '<option value="0014">0014</option>' +
+                        '</select></td>' +
+                        '<td><input type="hidden" name="participants[]" value="'+name+'">'+name+'</td>' +
+                        '<td><input type="text" name="membership_type[]" class="form-control" readonly></td>' +
+                        '<td><input type="number" name="registration_fee[]" step="0.01" class="form-control" required></td>' +
+                        '<td><input type="number" name="amount[]" step="0.01" class="form-control" required></td>' +
+                        '</tr>'
+                    );
+                });
+            } else {
+                tbody.append('<tr><td colspan="6" class="text-center">No participants found.</td></tr>');
             }
-        });
+        }
     });
 });
 
 function updateMembershipType(select){
     const mapping = {
-        '0001':'Regular Member',
-        '0002':'Reg. Mem. - Senior',
-        '0003':'Reg. Mem. - PWD',
-        '0004':'Life Member',
-        '0005':'Non-Member'
+        '0001': {type: 'Regular Member', price: 3700},
+        '0002': {type: 'Reg. Mem. - Senior', price: 3000},
+        '0003': {type: 'Reg. Mem. - PWD', price: 3000},
+        '0004': {type: 'Life Member', price: 3000},
+        '0005': {type: 'Non-Member', price: 4700},
+        '0006': {type: 'Early Bird Reg. Member', price: 3200},
+        '0007': {type: 'Associate Member', price: 3000},
+        '0008': {type: 'EB Reg. Member with 3-D Meal Package', price: 4700},
+        '0009': {type: 'Non-Member with 3-D Meal Package', price: 6200},
+        '0010': {type: 'New Board Passer', price: 3000},
+        '0011': {type: 'Reg. Mem. - Senior with 3-D Meal Package', price: 4500},
+        '0012': {type: '3-D Meal Package', price: 1500},
+        '0013': {type: 'Life Member with 3-D Meal Package', price: 4500},
+        '0014': {type: 'Regular Member with 3-D Meal Package', price: 5200}
     };
-    const membership = mapping[select.value] || '';
-    $(select).closest('tr').find('input[name="membership_type[]"]').val(membership);
+
+    const data = mapping[select.value] || {type: '', price: ''};
+    const row = $(select).closest('tr');
+    row.find('input[name="membership_type[]"]').val(data.type);
+    row.find('input[name="registration_fee[]"]').val(data.price);
+    row.find('input[name="amount[]"]').val(data.price);
 }
 
-$(document).ready(function(){
-    // Pagination for Individual Invitations Table
-    var rowsPerPage = 10;
-    var $table = $('#individualTab table tbody');
-    var $rows = $table.find('tr');
-    var totalRows = $rows.length;
-    var totalPages = Math.ceil(totalRows / rowsPerPage);
-
-    function showPage(page) {
-        $rows.hide();
-        $rows.slice((page-1)*rowsPerPage, page*rowsPerPage).show();
-        $('#tablePagination li').removeClass('active');
-        $('#tablePagination li[data-page="'+page+'"]').addClass('active');
-    }
-
-    function createPagination() {
-        var $pagination = $('#tablePagination');
-        $pagination.empty();
-        if(totalPages <= 1) return;
-
-        $pagination.append('<li class="page-item" id="prevPage"><a class="page-link" href="#">&lt;</a></li>');
-        for(var i=1; i<=totalPages; i++) {
-            $pagination.append('<li class="page-item" data-page="'+i+'"><a class="page-link" href="#">'+i+'</a></li>');
-        }
-        $pagination.append('<li class="page-item" id="nextPage"><a class="page-link" href="#">&gt;</a></li>');
-        $pagination.find('li[data-page="1"]').addClass('active');
-    }
-
-    createPagination();
-    showPage(1);
-
-    $('#tablePagination').on('click', 'li[data-page]', function(e){
-        e.preventDefault();
-        var page = $(this).data('page');
-        showPage(page);
-    });
-
-    $('#tablePagination').on('click', '#prevPage', function(e){
-        e.preventDefault();
-        var current = $('#tablePagination li.active').data('page');
-        if(current > 1) showPage(current-1);
-    });
-
-    $('#tablePagination').on('click', '#nextPage', function(e){
-        e.preventDefault();
-        var current = $('#tablePagination li.active').data('page');
-        if(current < totalPages) showPage(current+1);
-    });
-
-    // Pagination for SOA Released Table
-    var soaRowsPerPage = 10;
-    var $soaTable = $('#soaReleasedTable tbody');
-    var $soaRows = $soaTable.find('tr');
-    var soaTotalRows = $soaRows.length;
-    var soaTotalPages = Math.ceil(soaTotalRows / soaRowsPerPage);
-
-    function createSOAPagination() {
-        var $pagination = $('#soaReleasedPagination');
-        $pagination.empty();
-        if(soaTotalPages <= 1) return;
-
-        // Add Bootstrap pagination classes and some spacing
-        $pagination.addClass('d-flex justify-content-center');
-        $pagination.append('<ul class="pagination pagination-sm mb-0">');
-        var $ul = $pagination.find('ul');
-
-        $ul.append('<li class="page-item" id="soaPrevPage"><a class="page-link" href="#">&lt;</a></li>');
-        for(var i=1; i<=soaTotalPages; i++) {
-            $ul.append('<li class="page-item" data-page="'+i+'"><a class="page-link" href="#">'+i+'</a></li>');
-        }
-        $ul.append('<li class="page-item" id="soaNextPage"><a class="page-link" href="#">&gt;</a></li>');
-        $ul.find('li[data-page="1"]').addClass('active');
-    }
-
-    function showSOAPage(page) {
-        $soaRows.hide();
-        $soaRows.slice((page-1)*soaRowsPerPage, page*soaRowsPerPage).show();
-        $('#soaReleasedPagination li').removeClass('active');
-        $('#soaReleasedPagination li[data-page="'+page+'"]').addClass('active');
-        // Disable prev/next at ends
-        $('#soaReleasedPagination #soaPrevPage').toggleClass('disabled', page === 1);
-        $('#soaReleasedPagination #soaNextPage').toggleClass('disabled', page === soaTotalPages);
-    }
-
-    createSOAPagination();
-    showSOAPage(1);
-
-    $('#soaReleasedPagination').on('click', 'li[data-page]', function(e){
-        e.preventDefault();
-        var page = $(this).data('page');
-        showSOAPage(page);
-    });
-
-    $('#soaReleasedPagination').on('click', '#soaPrevPage', function(e){
-        e.preventDefault();
-        var current = $('#soaReleasedPagination li.active').data('page');
-        if(current > 1) showSOAPage(current-1);
-    });
-
-    $('#soaReleasedPagination').on('click', '#soaNextPage', function(e){
-        e.preventDefault();
-        var current = $('#soaReleasedPagination li.active').data('page');
-        if(current < soaTotalPages) showSOAPage(current+1);
-    });
-});
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
