@@ -90,7 +90,7 @@ if ($conn->query($sql) === TRUE) {
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
         $mail->Username = 'delegates@psmeinc.org.ph';
-        $mail->Password = 'bajk ootp unms mhci';
+        $mail->Password = 'nwcl irrj alpm jnhi';
         $mail->SMTPSecure = 'tls';
         $mail->Port = 587;
 
