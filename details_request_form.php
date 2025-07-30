@@ -141,7 +141,27 @@
 
                             <div class="mb-3">
                                 <label class="form-label">Full Name</label>
-                                <input type="text" name="full_name" class="form-control" required>
+                                <div class="row g-2">
+                                    <div class="col-4">
+                                        <select name="salutation" class="form-select" required>
+                                            <option value="" disabled selected>Salutation</option>
+                                            <option>Mr.</option>
+                                            <option>Ms.</option>
+                                            <option>Engr.</option>
+                                            <option>Dr.</option>
+                                            <option>Atty.</option>
+                                            <option>Hon.</option>
+                                            <option>Prof.</option>
+                                            <option>Rev.</option>
+                                            <option>Sr.</option>
+                                            <option>Fr.</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-8">
+                                        <input type="text" name="full_name" class="form-control" required placeholder="Full Name">
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="mb-3">

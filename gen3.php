@@ -440,7 +440,8 @@ let   countries =  [
       { value: "260", name: "Zambia" },
       { value: "263", name: "Zimbabwe" }
     ];
- countries = countries.map(c => ({ value: c.name, name: c.name }));
+countries = countries.map(c => ({ value: c.name, name: c.name }));
+
   // --- State helpers ---
   const STATE_KEY = 'natconRegistrationState';
   const getInitialState = () => ({ company_name: '', company_address: '', delegates: [] });
@@ -465,145 +466,171 @@ let   countries =  [
   const formTitle      = document.getElementById('form-title');
 
   // --- Initialize page ---
- function initializePage() {
-  // populate country dropdown
-  countries.forEach(c => selCountry.add(new Option(c.name, c.value)));
-  selCountry.value = '63';
+  function initializePage() {
+    // populate country dropdown
+    countries.forEach(c => selCountry.add(new Option(c.name, c.value)));
+    selCountry.value = 'Philippines';
 
-  // region→chapter linkage
-  selRegion.addEventListener('change', () => {
-    selChapter.innerHTML = '<option value="">Select Region First</option>';
-    (chapters[selRegion.value]||[]).forEach(ch => selChapter.add(new Option(ch,ch)));
-  });
+    // region→chapter linkage
+    selRegion.addEventListener('change', () => {
+      selChapter.innerHTML = '<option value="">Select Region First</option>';
+      (chapters[selRegion.value]||[]).forEach(ch => selChapter.add(new Option(ch,ch)));
+    });
 
-  // restore state if any
-  const s = loadState();
-  if (s && s.company_name) showDelegateArea(s);
-}
-
-// --- Render table ---
-function renderTable() {
-  const s = loadState(); tblBody.innerHTML = '';
-  if (!s || !s.delegates) return;
-  s.delegates.forEach(d => {
-    const tr = tblBody.insertRow(); tr.dataset.id = d.temp_id;
-    tr.innerHTML = `
-      <td>${d.firstname||''}</td>
-      <td>${d.lastname||''}</td>
-      <td>${d.emailid||''}</td>
-      <td>${d.chapter||''}</td>
-      <td>
-        <button class="btn-icon edit" data-id="${d.temp_id}">✏️</button>
-        <button class="btn-icon delete" data-id="${d.temp_id}">🗑️</button>
-      </td>`;
-  });
-  btnGen.style.display = s.delegates.length ? 'inline-block' : 'none';
-}
-
-// --- Show delegate area ---
-function showDelegateArea(s) {
-  document.getElementById('company-name-display').textContent = s.company_name;
-  document.getElementById('company-address-display').textContent = s.company_address;
-  companySection.style.display = 'none'; delegateArea.style.display = 'block';
-  renderTable();
-}
-
-// --- Reset form ---
-function resetForm() {
-  frm.reset();
-  formTitle.textContent = 'Add Delegate Information';
-  btnSubmit.textContent = 'Add Delegate';
-  btnSubmit.classList.replace('btn-success', 'btn-primary');
-  btnCancel.style.display = 'none';
-  document.getElementById('temp_id').value = '';
-}
-
-// --- Event listeners ---
-btnInit.addEventListener('click', () => {
-  const name = inpCoName.value.trim(), addr = inpCoAddress.value.trim();
-  if (!name || !addr) return alert('Company name and address required');
-  const s = getInitialState(); s.company_name = name; s.company_address = addr;
-  saveState(s); showDelegateArea(s);
-});
-
-btnSubmit.addEventListener('click', () => {
-  const s = loadState(); if (!s) return;
-  const tempId = document.getElementById('temp_id').value;
-  // grab all form fields
-  const data = Object.fromEntries(new FormData(frm).entries());
-  // OVERRIDE country to use the option's TEXT, not its value
-  data.country = selCountry.selectedOptions[0].text;
-
-  if (tempId) {
-    // editing existing
-    const idx = s.delegates.findIndex(d => d.temp_id == tempId);
-    if (idx > -1) s.delegates[idx] = { ...s.delegates[idx], ...data };
-  } else {
-    // adding new
-    data.temp_id = Date.now();
-    s.delegates.push(data);
+    // restore state if any
+    const s = loadState();
+    if (s && s.company_name) showDelegateArea(s);
   }
-  saveState(s);
-  renderTable();
-  resetForm();
-});
 
-tblBody.addEventListener('click', e => {
-  const btn = e.target.closest('button'); if (!btn) return;
-  const s = loadState(), id = btn.dataset.id;
-  if (btn.classList.contains('delete')) {
-    if (confirm('Delete this delegate?')) {
-      s.delegates = s.delegates.filter(d => d.temp_id != id);
-      saveState(s); renderTable();
-    }
-  } else if (btn.classList.contains('edit')) {
-    const d = s.delegates.find(d => d.temp_id == id); if (!d) return;
-    Object.keys(d).forEach(k => { if (frm.elements[k]) frm.elements[k].value = d[k]; });
-    selRegion.dispatchEvent(new Event('change'));
-    setTimeout(() => frm.elements.chapter.value = d.chapter, 100);
-    formTitle.textContent = 'Editing Delegate Information';
-    btnSubmit.textContent = 'Update Delegate';
-    btnSubmit.classList.replace('btn-primary', 'btn-success');
-    btnCancel.style.display = 'inline-block';
-    frm.scrollIntoView({ behavior: 'smooth' });
+  // --- Render table ---
+  function renderTable() {
+    const s = loadState();
+    tblBody.innerHTML = '';
+    if (!s || !s.delegates) return;
+    s.delegates.forEach(d => {
+      const tr = tblBody.insertRow();
+      tr.dataset.id = d.temp_id;
+      tr.innerHTML = `
+        <td>${d.firstname||''}</td>
+        <td>${d.lastname||''}</td>
+        <td>${d.emailid||''}</td>
+        <td>${d.chapter||''}</td>
+        <td>
+          <button class="btn-icon edit" data-id="${d.temp_id}">✏️</button>
+          <button class="btn-icon delete" data-id="${d.temp_id}">🗑️</button>
+        </td>`;
+    });
+    btnGen.style.display = s.delegates.length ? 'inline-block' : 'none';
   }
-});
 
-btnCancel.addEventListener('click', resetForm);
+  // --- Show delegate area ---
+  function showDelegateArea(s) {
+    document.getElementById('company-name-display').textContent = s.company_name;
+    document.getElementById('company-address-display').textContent = s.company_address;
+    companySection.style.display = 'none';
+    delegateArea.style.display    = 'block';
+    renderTable();
+  }
 
-btnGen.addEventListener('click', () => {
-  const s = loadState(); if (!s || !s.delegates.length) return alert('No delegates to generate');
-  btnGen.disabled = true; btnGen.textContent = 'Generating...';
-  const payload = {
-    action: 'finalize_and_generate',
-    company_name: s.company_name,
-    company_address: s.company_address,
-    delegates: s.delegates
-  };
-  fetch('gen3_api.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-  .then(r => r.json())
-  .then(js => {
-    if (js.error) alert('Error: ' + js.error);
-    else {
-      alert('Success! Downloading...');
-      window.location.href = js.file;
-      clearState();
-      setTimeout(() => location.reload(), 500);
+  // --- Reset form ---
+  function resetForm() {
+    frm.reset();
+    formTitle.textContent = 'Add Delegate Information';
+    btnSubmit.textContent = 'Add Delegate';
+    btnSubmit.classList.replace('btn-success','btn-primary');
+    btnCancel.style.display = 'none';
+    document.getElementById('temp_id').value = '';
+  }
+
+  // --- Event listeners ---
+  btnInit.addEventListener('click', () => {
+    const name = inpCoName.value.trim();
+    const addr = inpCoAddress.value.trim();
+    if (!name || !addr) {
+      alert('Company name and address required');
+      return;
     }
-  })
-  .catch(() => alert('Could not connect'))
-  .finally(() => {
-    btnGen.disabled = false;
-    btnGen.textContent = 'Generate Final Document';
+    const s = getInitialState();
+    s.company_name    = name;
+    s.company_address = addr;
+    saveState(s);
+    showDelegateArea(s);
   });
-});
 
-document.addEventListener('DOMContentLoaded', initializePage);
-</script>
+  btnSubmit.addEventListener('click', () => {
+    // 1) Enforce HTML5 validation
+    if (!frm.checkValidity()) {
+      frm.reportValidity();
+      return;
+    }
+
+    // 2) Gather data
+    const s = loadState(); if (!s) return;
+    const tempId = document.getElementById('temp_id').value;
+    const data = Object.fromEntries(new FormData(frm).entries());
+    // ensure country = its displayed text
+    data.country = selCountry.selectedOptions[0].text;
+
+    if (tempId) {
+      // update existing
+      const idx = s.delegates.findIndex(d => d.temp_id == tempId);
+      if (idx > -1) s.delegates[idx] = { ...s.delegates[idx], ...data };
+    } else {
+      // add new
+      data.temp_id = Date.now();
+      s.delegates.push(data);
+    }
+
+    saveState(s);
+    renderTable();
+    resetForm();
+  });
+
+  tblBody.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const s = loadState(), id = btn.dataset.id;
+    if (btn.classList.contains('delete')) {
+      if (confirm('Delete this delegate?')) {
+        s.delegates = s.delegates.filter(d => d.temp_id != id);
+        saveState(s);
+        renderTable();
+      }
+    } else if (btn.classList.contains('edit')) {
+      const d = s.delegates.find(d => d.temp_id == id);
+      if (!d) return;
+      Object.keys(d).forEach(k => {
+        if (frm.elements[k]) frm.elements[k].value = d[k];
+      });
+      selRegion.dispatchEvent(new Event('change'));
+      setTimeout(() => frm.elements.chapter.value = d.chapter, 100);
+      formTitle.textContent = 'Editing Delegate Information';
+      btnSubmit.textContent = 'Update Delegate';
+      btnSubmit.classList.replace('btn-primary','btn-success');
+      btnCancel.style.display = 'inline-block';
+      frm.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  btnCancel.addEventListener('click', resetForm);
+
+  btnGen.addEventListener('click', () => {
+    const s = loadState();
+    if (!s || !s.delegates.length) {
+      alert('No delegates to generate');
+      return;
+    }
+    btnGen.disabled = true;
+    btnGen.textContent = 'Generating...';
+    fetch('gen3_api.php', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        action: 'finalize_and_generate',
+        company_name:    s.company_name,
+        company_address: s.company_address,
+        delegates:       s.delegates
+      })
+    })
+    .then(r => r.json())
+    .then(js => {
+      if (js.error) alert('Error: ' + js.error);
+      else {
+        alert('Success! Downloading...');
+        window.location.href = js.file;
+        clearState();
+        setTimeout(() => location.reload(), 500);
+      }
+    })
+    .catch(() => alert('Could not connect'))
+    .finally(() => {
+      btnGen.disabled   = false;
+      btnGen.textContent = 'Generate Final Document';
+    });
+  });
+
+  document.addEventListener('DOMContentLoaded', initializePage);
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
