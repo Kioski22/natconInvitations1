@@ -1,5 +1,15 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
 require 'db.php';
+
+// Pagination setup for invitations
+$limit = 7; // records per page
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
 
 // Get count of sent invitations
 $sql_sent = "SELECT COUNT(*) as total_sent FROM invitations WHERE status='sent'";
@@ -99,7 +109,13 @@ $total_soa = $row_soa['total_soa'];
             </thead>
             <tbody>
             <?php
-            $sql = "SELECT * FROM invitations ORDER BY event, company";
+            // Get total records for pagination
+            $sql_count = "SELECT COUNT(*) as total FROM invitations";
+            $result_count = $conn->query($sql_count);
+            $total_records = $result_count->fetch_assoc()['total'];
+            $total_pages = ceil($total_records / $limit);
+
+            $sql = "SELECT * FROM invitations ORDER BY event, company LIMIT $limit OFFSET $offset";
             $result = $conn->query($sql);
             if ($result->num_rows > 0):
                 while($row = $result->fetch_assoc()):
@@ -118,6 +134,26 @@ $total_soa = $row_soa['total_soa'];
             <?php endif; ?>
             </tbody>
         </table>
+        <!-- Pagination controls -->
+        <nav>
+            <ul class="pagination justify-content-center">
+                <?php if ($page > 1): ?>
+                    <li class="page-item">
+                        <a class="page-link" href="?page=<?= $page-1 ?>" onclick="showTab('individual'); return false;">Previous</a>
+                    </li>
+                <?php endif; ?>
+                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                    <li class="page-item <?= $i == $page ? 'active' : '' ?>">
+                        <a class="page-link" href="?page=<?= $i ?>" onclick="showTab('individual'); return false;"><?= $i ?></a>
+                    </li>
+                <?php endfor; ?>
+                <?php if ($page < $total_pages): ?>
+                    <li class="page-item">
+                        <a class="page-link" href="?page=<?= $page+1 ?>" onclick="showTab('individual'); return false;">Next</a>
+                    </li>
+                <?php endif; ?>
+            </ul>
+        </nav>
     </div>
 
     <!-- Company Tab -->
@@ -313,6 +349,12 @@ function updateMembershipType(select){
     row.find('input[name="amount[]"]').val(data.price);
 }
 
+// Ensure correct tab is shown on page reload with pagination
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.search.includes('page=')) {
+        showTab('individual');
+    }
+});
 </script>
 
 

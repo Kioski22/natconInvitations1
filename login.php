@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($password === $correctPassword) {
         // Set session but delay redirect via JS
+        $_SESSION['admin_logged_in'] = true;
         $_SESSION['user'] = 'admin';
         $showLoading = true;
     } else {
