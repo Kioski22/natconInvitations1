@@ -1,138 +1,3 @@
-<?php
-ini_set('display_errors', 1); // For debugging ONLY, remove in production
-error_reporting(E_ALL);     // For debugging ONLY, remove in production
-
-// index.php
-require __DIR__ . '/vendor/autoload.php';
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Shared\Date;
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Allow CORS if needed (optional)
-    // header('Access-Control-Allow-Origin: *');
-    // if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    //     header('Access-Control-Allow-Methods: POST, OPTIONS');
-    //     header('Access-Control-Allow-Headers: Content-Type');
-    //     exit;
-    // }
-
-    $json_data = file_get_contents('php://input');
-    $data = json_decode($json_data, true);
-
-    if (isset($data['action']) && $data['action'] === 'finalize_and_generate') {
-        header('Content-Type: application/json');
-        
-        // --- Include the database connection ---
-        require_once __DIR__ . '/db.php';
-
-        $company_name    = trim($data['company_name'] ?? '');
-        $company_address = trim($data['company_address'] ?? '');
-        $delegates       = $data['delegates'] ?? [];
-
-        if (empty($company_name) || empty($delegates)) {
-            echo json_encode(['error' => 'Company name and at least one delegate are required.']);
-            exit;
-        }
-
-        $conn->begin_transaction();
-        try {
-            // 1. Insert the company
-            $excel_filename = preg_replace('/[^a-z0-9]+/i', '', $company_name) . '_natcon_registration.xlsx';
-            $stmt = $conn->prepare(
-                "INSERT INTO companies (company_name, company_address, excel_filename) VALUES (?, ?, ?)"
-            );
-            $stmt->bind_param('sss', $company_name, $company_address, $excel_filename);
-            $stmt->execute();
-            $cid = $conn->insert_id;
-            $stmt->close();
-
-            // 2. Insert delegates
-            $delegate_fields = [
-                'delegates_fname','delegates_mname','delegates_lname','delegates_suffix',
-                'delegates_dob','delegates_emailid','delegates_country','delegates_contactno',
-                'prcLicenseType','prcLicenseNo','prcLicenseExpiration',
-                'region','chapter','sector','register_type','isPWD'
-            ];
-            $placeholders = implode(',', array_fill(0, count($delegate_fields), '?'));
-            $types = 'i' . str_repeat('s', count($delegate_fields));
-            $sql = "INSERT INTO delegates (company_id, " . implode(',', $delegate_fields) . ") VALUES (?, {$placeholders})";
-            $stmt = $conn->prepare($sql);
-            foreach ($delegates as $delegate) {
-                $params = [$cid];
-                foreach ($delegate_fields as $f) {
-                    $params[] = !empty($delegate[$f]) ? $delegate[$f] : null;
-                }
-                $stmt->bind_param($types, ...$params);
-                $stmt->execute();
-            }
-            $stmt->close();
-
-            // 3. Generate the Spreadsheet
-            $ss = new Spreadsheet();
-            $sh = $ss->getActiveSheet();
-
-            // Headers on row 1
-            $headers = array_keys($delegates[0]);
-            $headers = array_diff($headers, ['temp_id']);
-            $sh->fromArray($headers, null, 'A1');
-
-            // Prepare data and convert dates to Excel serial
-            $dataRows = [];
-            foreach ($delegates as $d) {
-                unset($d['temp_id']);
-                $row = array_values($d);
-                // Convert DOB
-                if (($i = array_search('delegates_dob', $headers, true)) !== false) {
-                    $dt = DateTime::createFromFormat('Y-m-d', $row[$i]);
-                    if ($dt) $row[$i] = Date::PHPToExcel($dt);
-                }
-                // Convert PRC expiration
-                if (($j = array_search('prcLicenseExpiration', $headers, true)) !== false) {
-                    $dt = DateTime::createFromFormat('Y-m-d', $row[$j]);
-                    if ($dt) $row[$j] = Date::PHPToExcel($dt);
-                }
-                $dataRows[] = $row;
-            }
-            $sh->fromArray($dataRows, null, 'A2');
-
-            // Auto-size & bold header row
-            $highestCol = $sh->getHighestDataColumn();
-            foreach (range('A', $highestCol) as $col) {
-                $sh->getColumnDimension($col)->setAutoSize(true);
-            }
-            $sh->getStyle("A1:{$highestCol}1")->getFont()->setBold(true);
-
-            // Format date columns mm/dd/yyyy
-            $highestRow = $sh->getHighestRow();
-            foreach (['delegates_dob','prcLicenseExpiration'] as $field) {
-                if (($k = array_search($field, $headers, true)) !== false) {
-                    $col = Coordinate::stringFromColumnIndex($k + 1);
-                    $sh->getStyle("{$col}2:{$col}{$highestRow}")
-                       ->getNumberFormat()
-                       ->setFormatCode('mm/dd/yyyy');
-                }
-            }
-
-            // 4. Save file
-            $dir = __DIR__ . '/exports';
-            if (!is_dir($dir)) mkdir($dir, 0755, true);
-            (new Xlsx($ss))->save("{$dir}/{$excel_filename}");
-
-            $conn->commit();
-            echo json_encode(['file' => "exports/{$excel_filename}"]);
-
-        } catch (Exception $e) {
-            $conn->rollback();
-            echo json_encode(['error' => 'An error occurred: ' . $e->getMessage()]);
-        }
-
-        $conn->close();
-        exit;
-    }
-}
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -141,39 +6,175 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>PSME Natcon Bulk Registration</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
+    body {background-image: url(natconlogo.jpg); background-size:cover;}
     .btn-icon { background:none;border:none;font-size:1.1em;cursor:pointer; }
+    .btn-primary {background-color: #111e6c;}
+    #company-name-display {color: #111e6c;}
+    thead {background-color: #111e6c; color:#ffffff;}
     #delegate-area { display: none; }
+    #company-section {align-items:center; justify-content:center; margin:20px;}
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="#">PSME Natcon</a>
+  <div class="container py-4">
+    <!-- Company Section -->
+    <div id="company-section">
+      <h2>Company Info</h2>
+      <div class="company-form" style="width:700px; background-color:#f0f0f0; margin:10px; padding:20px; align-content:center;">
+        <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Company Name</label>
+          <input type="text" id="company-name" class="form-control" required minlength="2" maxlength="100" placeholder="Acme Corporation" />
+        </div>
+        <p></p>
+        <div class="col-md-6">
+          <label class="form-label">Company Address</label>
+          <input type="text" id="company-address" class="form-control" required minlength="5" maxlength="200" placeholder="123 Innovation Drive, Tech City" />
+        </div>
+      </div>
+      <div class="mt-3 text-center">
+        <button id="btnInit" class="btn btn-primary">Start Registration</button>
+      </div>
     </div>
-  </nav>
-  <div class="container">
-    <!-- UI HTML unchanged -->
+    </div>
+
+    <!-- Delegate Section -->
+    <div id="delegate-area" class="mt-5">
+      <h2>Delegates for <span id="company-name-display"></span></h2>
+      <table class="table table-bordered" id="tblDelegates">
+        <thead>
+          <tr>
+            <th>First</th><th>Middle</th><th>Last</th><th>Email</th><th>PRC License No.</th><th>Chapter</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <form id="frmDelegate" class="row g-3 needs-validation" novalidate>
+        <input type="hidden" id="temp_id" />
+        <div class="col-md-3">
+          <label class="form-label">First Name</label>
+          <input type="text" name="firstname" class="form-control" required pattern="[A-Za-z ]{2,50}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Middle Name</label>
+          <input type="text" name="middle" class="form-control" pattern="[A-Za-z ]{0,50}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Last Name</label>
+          <input type="text" name="lastname" class="form-control" required pattern="[A-Za-z ]{2,50}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Suffix</label>
+          <input type="text" name="suffix" class="form-control" pattern="[A-Za-z0-9 ]{0,10}" />
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Date of Birth</label>
+          <input type="date" name="dateofbirth" class="form-control" required max="2007-07-30" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Email</label>
+          <input type="email" name="emailid" class="form-control" required maxlength="254" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Mobile Number</label>
+          <input type="tel" name="mobilenumber" class="form-control" required pattern="^\d{10,15}$" maxlength="15" />
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Country</label>
+          <select id="delegates-country" name="country" class="form-select" required>
+            <option value="">Select</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Region</label>
+          <select id="region" name="region" class="form-select" required>
+            <option value="">Select</option>
+            <option>NCR</option><option>Luzon</option><option>Visayas</option><option>Mindanao</option><option>International</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Chapter</label>
+          <select id="chapter" name="chapter" class="form-select" required>
+            <option value="">Select Region First</option>
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">PRC License Type</label>
+          <select name="prc_license_type" class="form-select" required>
+            <option value="">Select</option>
+            <option>Professional Mechanical Engineer</option>
+            <option>Registered Mechanical Engineer</option>
+            <option>Certified Plant Mechanic</option>
+            <option>ME Graduate</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">PRC License Number</label>
+          <input type="text"
+                name="prc_license_number"
+                class="form-control"
+                required
+                pattern="\d{5,20}"
+                maxlength="20"
+                inputmode="numeric"
+                title="Enter 5–20 digits only" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">PRC Expiration Date</label>
+          <input type="date"
+                 name="prc_license_expiration_date"
+                 class="form-control"
+                 required
+                 min="2025-01-01" />
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Sector</label>
+          <select name="sector" class="form-select" required>
+            <option value="">Select</option><option>Government</option><option>Private</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Register Type</label>
+          <select name="register_type" class="form-select" required>
+            <option value="">Select</option><option>Regular</option><option>Life / Associate Member</option><option>Guest/Non‑member</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">PWD?</label>
+          <select name="isPWD" class="form-select" required>
+            <option value="">Select</option><option>Yes</option><option>No</option>
+          </select>
+        </div>
+
+        <div class="col-12 text-end">
+          <button type="button" id="btnCancel" class="btn btn-secondary" style="display:none;">Cancel</button>
+          <button type="button" id="btnSubmit" class="btn btn-primary">Add Delegate</button>
+        </div>
+      </form>
+
+      <div class="mt-4 text-end">
+        <button id="btnGenerate" class="btn btn-success" style="display:none;">Generate Document</button>
+      </div>
+    </div>
   </div>
-  <script>
-  document.addEventListener('DOMContentLoaded', ()=>{
-    // Fetch POST endpoint fixed
-    const originalFetch = window.fetch;
-    window.fetch = (url, opts) => originalFetch('index.php', opts);
-  });
-  // Existing JS unchanged
 
   <script>
-// --- Data for dropdowns (countries, chapters) ---
- const chapters = {
+    const chapters = {
       "NCR": ["Embo","Intramuros","Las Piñas-Muntinlupa","Makati","Makati (Host)","Mandaluyong","Manila","Marikina City","Manila West","Metro Manila BFP","Medical Services","Metro North","NCR Academe","NCR Metrosouth","Ortigas-Pasig","Parañaque","Pasay","Pasig","Quezon City Agham","Quezon City","Taguig","Manila (Host)","South Harbor (PCG)","Test","Balara","Logomeap","Makati CBD","Metro Marikina","NCR Port Area","Quezon City Central","Quezon City United"],
       "Luzon": ["Abra","Albay-Legazpi","Bacon-Manito","Baguio-Cordillera","Bataan","Batangas","Bulacan","Cagayan Valley","Camarines Norte (Daet)","Camsur-Naga","Catanduanes","Cavite","Cavite-Carsigma","Cavite-Imbarkaw","Central Laguna","Clark","Isabela-Quirino","Ilocos","La Union","Makban","Masbate","Mindoro","Nueva Ecija","Nueva Viscaya","Palawan","Pampanga (Host)","Pangasinan","Pililla-Jalajala","QBL Host","Quezon Province","Rinconada","Rizal","Rizal - Antipolo","Romblon","Sorsogon (Host)","Tarlac","Western Batangas","Aurora","Benguet-Southwest","Bulacan East","Bulacan North","Mankayan-Mt. Province","Pampanga","Rio Tuba","Subic","Baguio City","Cordillera","Batangas East"],
       "Visayas": ["Aklan","Capiz","Cebu","Cebu Central","Cebu East","Cebu Hotel And Building Engineers","Cebu South","Cebu West","Datu Sikatuna (Bohol)","Isabel Leyte","Kalanggaman","Lapu-Lapu","Mandaue","Negros Del Norte","Negros Occidental","Negros Oriental","Northern Samar","Ormoc-Kananga","Palinpinon","Panay","San Carlos Negros","San Juanico","Toledo","Dumaguete","Cebu North","Iloilo","Metro Bacolod","Negros Island"],
       "Mindanao": ["Agusan","Allah Valley","Bukidnon","Cagayan De Oro","Cotabato","Davao","Davao Central","General Santos City","Lanao Del Sur","Mt. Apo","Pagadian City","Polomolok","Sultan Kudarat","Surigao","Taganito Claver","Wesmin","Zamboanga Del Norte","Misamis Oriental East","Davao Del Sur","Davao Del Norte","Davao Occidental","Iligan Bay","Iligan City","Misamis Occidental","Samal","Sarangani","Zambasulta"],
       "International": ["69th Chapter Singapore","Bahrain","Brunei","Crsa Riyadh","Indonesia","Japan","Jeddah","Ksa Riyadh","Qatar","Saudi Arabia","State Of Kuwait","UAE-Abu Dhabi","United Arab Emirates (UAE)","WRSA Jeddah","Yanbu & Rabigh","Oman","Kuwait"]
     };
-const countries =  [
-      { value: "93", name: "Afghanistan" },
-      { value: "355", name: "Albania" },
+let   countries =  [
+      { value: "Afghanistan", name: "Afghanistan" },
+      { value: "Albania", name: "Albania" },
       { value: "213", name: "Algeria" },
       { value: "1-684", name: "American Samoa" },
       { value: "376", name: "Andorra" },
@@ -405,211 +406,158 @@ const countries =  [
       { value: "260", name: "Zambia" },
       { value: "263", name: "Zimbabwe" }
     ];
-</script>
+    countries = countries.map(c=>({ value:c.name, name:c.name }));
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    // --- Constants and State Management ---
-    const STATE_KEY = 'natconRegistrationState';
-    
-    const getInitialState = () => ({
-        company_name: '',
-        company_address: '',
-        delegates: []
-    });
+    // --- State helpers ---
+    const KEY = 'natconState';
+    const saveState = s=>sessionStorage.setItem(KEY, JSON.stringify(s));
+    const loadState = ()=>JSON.parse(sessionStorage.getItem(KEY))||{company_name:'',delegates:[]};
+    const clearState = ()=>sessionStorage.removeItem(KEY);
 
-    const saveState = (state) => sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
-    const loadState = () => JSON.parse(sessionStorage.getItem(STATE_KEY)) || null;
-    const clearState = () => sessionStorage.removeItem(STATE_KEY);
+    // DOM refs
+    const btnInit   = document.getElementById('btnInit');
+    const btnSubmit = document.getElementById('btnSubmit');
+    const btnCancel = document.getElementById('btnCancel');
+    const btnGen    = document.getElementById('btnGenerate');
+    const frm       = document.getElementById('frmDelegate');
+    const tblBody   = document.querySelector('#tblDelegates tbody');
+    const regionSel = document.getElementById('region');
+    const chapSel   = document.getElementById('chapter');
+    const countrySel= document.getElementById('delegates-country');
 
-    // --- Element References ---
-    const companySection = document.getElementById('company-section'),
-          delegateArea = document.getElementById('delegate-area'),
-          tblBody = document.getElementById('tblDelegates').querySelector('tbody'),
-          frm = document.getElementById('frmDelegate'),
-          btnInit = document.getElementById('btnInit'),
-          btnSubmit = document.getElementById('btnSubmit'),
-          btnCancel = document.getElementById('btnCancel'),
-          btnGen = document.getElementById('btnGenerate'),
-          inpCoName = document.getElementById('company-name'),
-          inpCoAddress = document.getElementById('company-address'),
-          selRegion = document.getElementById('region'),
-          selChapter = document.getElementById('chapter'),
-          selCountry = document.getElementById('delegates-country'),
-          formTitle = document.getElementById('form-title');
-
-    // --- Helper Functions ---
-    const renderTable = () => {
-        const state = loadState();
-        tblBody.innerHTML = '';
-        if (!state || !state.delegates) return;
-
-        state.delegates.forEach(delegate => {
-            const tr = tblBody.insertRow();
-            tr.dataset.id = delegate.temp_id;
-            tr.innerHTML = `
-                <td>${delegate.delegates_fname || ''}</td>
-                <td>${delegate.delegates_lname || ''}</td>
-                <td>${delegate.delegates_emailid || ''}</td>
-                <td>${delegate.chapter || ''}</td>
-                <td>
-                    <button class="btn-icon edit" data-id="${delegate.temp_id}">✏️</button>
-                    <button class="btn-icon delete" data-id="${delegate.temp_id}">🗑️</button>
-                </td>`;
-        });
-        
-        btnGen.style.display = state.delegates.length > 0 ? 'inline-block' : 'none';
-    };
-    
-    const resetForm = () => {
-        frm.reset();
-        formTitle.textContent = 'Add Delegate Information';
-        btnSubmit.textContent = 'Add Delegate';
-        btnSubmit.classList.replace('btn-success', 'btn-primary');
-        btnCancel.style.display = 'none';
-        document.getElementById('temp_id').value = '';
-    };
-
-    const showDelegateArea = (state) => {
-        document.getElementById('company-name-display').textContent = state.company_name;
-        document.getElementById('company-address-display').textContent = state.company_address;
-        companySection.style.display = 'none';
-        delegateArea.style.display = 'block';
+    // Init page
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // populate countries
+      countries.forEach(c=>countrySel.add(new Option(c.name,c.value)));
+      countrySel.value='Philippines';
+      // region→chapter
+      regionSel.addEventListener('change',()=>{
+        chapSel.innerHTML='<option value="">Select Region First</option>';
+        (chapters[regionSel.value]||[]).forEach(ch=>chapSel.add(new Option(ch,ch)));
+      });
+      // restore
+      const s = loadState();
+      if(s.company_name){
+        document.getElementById('company-name-display').textContent=s.company_name;
+        document.getElementById('company-section').style.display='none';
+        document.getElementById('delegate-area').style.display='block';
         renderTable();
-    };
-    
-    // --- Initialization ---
-    const initializePage = () => {
-        countries.forEach(c => selCountry.add(new Option(c.name, c.value)));
-        selCountry.value = "63"; // Default to Philippines
-
-        selRegion.addEventListener('change', function() {
-            selChapter.innerHTML = '<option value="">Select Chapter</option>';
-            (chapters[this.value] || []).forEach(ch => selChapter.add(new Option(ch, ch)));
-        });
-
-        const savedState = loadState();
-        if (savedState && savedState.company_name) {
-            showDelegateArea(savedState);
-        }
-    };
-    
-    initializePage();
-
-    // --- Event Listeners ---
-    btnInit.addEventListener('click', () => {
-        const companyName = inpCoName.value.trim();
-        const companyAddress = inpCoAddress.value.trim();
-        if (!companyName || !companyAddress) {
-            return alert('Please enter both company name and address.');
-        }
-        
-        const newState = getInitialState();
-        newState.company_name = companyName;
-        newState.company_address = companyAddress;
-        saveState(newState);
-        showDelegateArea(newState);
+      }
     });
 
-    btnSubmit.addEventListener('click', () => {
-        const state = loadState();
-        if (!state) return;
-        
-        const tempId = document.getElementById('temp_id').value;
-        const formData = new FormData(frm);
-        const delegateData = Object.fromEntries(formData.entries());
-        
-        if (tempId) { // Update
-            const index = state.delegates.findIndex(d => d.temp_id == tempId);
-            if (index !== -1) {
-                state.delegates[index] = { ...state.delegates[index], ...delegateData };
-            }
-        } else { // Add
-            delegateData.temp_id = Date.now();
-            state.delegates.push(delegateData);
-        }
-        
-        saveState(state);
-        renderTable();
-        resetForm();
+    // Start registration
+    btnInit.addEventListener('click',()=>{
+      const cn=document.getElementById('company-name'), ca=document.getElementById('company-address');
+      if(!cn.checkValidity()||!ca.checkValidity()){cn.reportValidity();ca.reportValidity();return;}
+      saveState({ company_name:cn.value.trim(), company_address:ca.value.trim(), delegates:[] });
+      document.getElementById('company-name-display').textContent=cn.value.trim();
+      document.getElementById('company-section').style.display='none';
+      document.getElementById('delegate-area').style.display='block';
     });
 
-    tblBody.addEventListener('click', e => {
-        const btn = e.target.closest('button.btn-icon');
-        if (!btn) return;
-        
-        const state = loadState();
-        const tempId = btn.dataset.id;
-        
-        if (btn.classList.contains('delete')) {
-            if (!confirm('Delete this delegate?')) return;
-            state.delegates = state.delegates.filter(d => d.temp_id != tempId);
-            saveState(state);
-            renderTable();
-        } else if (btn.classList.contains('edit')) {
-            const delegate = state.delegates.find(d => d.temp_id == tempId);
-            if (!delegate) return;
-            
-            for (const key in delegate) {
-                if (frm.elements[key]) {
-                    frm.elements[key].value = delegate[key] || '';
-                }
-            }
-            
-            selRegion.dispatchEvent(new Event('change'));
-            setTimeout(() => { frm.elements.chapter.value = delegate.chapter; }, 100);
-            
-            formTitle.textContent = 'Editing Delegate Information';
-            btnSubmit.textContent = 'Update Delegate';
-            btnSubmit.classList.replace('btn-primary', 'btn-success');
-            btnCancel.style.display = 'inline-block';
-            frm.scrollIntoView({ behavior: 'smooth' });
-        }
+    // Add/update delegate
+    btnSubmit.addEventListener('click',()=>{
+      if(!frm.checkValidity()){ frm.reportValidity(); return; }
+      const state=loadState();
+      // age
+      const dob=new Date(frm.dateofbirth.value);
+      const age=Math.floor((Date.now()-dob)/(365.25*24*3600*1000));
+      if(age<18||age>100) return alert('Age must be 18–100');
+      // chapter↔region
+      if(!chapters[regionSel.value]?.includes(chapSel.value)) return alert('Invalid chapter');
+      // unique PRC
+      const prc=frm.prc_license_number.value.trim();
+      if(state.delegates.some(d=>d.prc_license_number===prc && d.temp_id!==frm.temp_id.value))
+        return alert(`PRC No. “${prc}” already used`);
+
+      const data=Object.fromEntries(new FormData(frm).entries());
+      if(frm.temp_id.value){
+        const i=state.delegates.findIndex(d=>d.temp_id==frm.temp_id.value);
+        state.delegates[i]={...state.delegates[i],...data};
+      } else {
+        data.temp_id=Date.now().toString();
+        state.delegates.push(data);
+      }
+      saveState(state); renderTable(); resetForm();
     });
 
-    btnCancel.addEventListener('click', resetForm);
+    // Render table
+    function renderTable(){
+      const s=loadState();
+      tblBody.innerHTML='';
+      s.delegates.forEach(d=>{
+        const tr=tblBody.insertRow(); tr.dataset.id=d.temp_id;
+        tr.innerHTML=`
+          <td>${d.firstname}</td>
+          <td>${d.middle||''}</td>
+          <td>${d.lastname}</td>
+          <td>${d.emailid}</td>
+          <td>${d.prc_license_number}</td>
+          <td>${d.chapter}</td>
+          <td>
+            <button class="btn-icon edit" data-id="${d.temp_id}">✏️</button>
+            <button class="btn-icon delete" data-id="${d.temp_id}">🗑️</button>
+          </td>`;
+      });
+      btnGen.style.display=s.delegates.length?'inline-block':'none';
+    }
 
-    btnGen.addEventListener('click', () => {
-        const state = loadState();
-        if (!state || state.delegates.length === 0) {
-            return alert('No delegates to generate. Please add at least one delegate.');
+    // Edit/Delete
+    tblBody.addEventListener('click',e=>{
+      const b=e.target.closest('button'); if(!b)return;
+      const id=b.dataset.id, s=loadState();
+      if(b.classList.contains('delete')){
+        if(confirm('Delete this delegate?')){
+          s.delegates=s.delegates.filter(d=>d.temp_id!==id);
+          saveState(s); renderTable();
         }
+      } else {
+        const d=s.delegates.find(x=>x.temp_id===id);
+        Object.keys(d).forEach(k=>{ if(frm.elements[k]) frm.elements[k].value=d[k]; });
+        regionSel.dispatchEvent(new Event('change'));
+        chapSel.value=d.chapter;
+        frm.temp_id.value=id;
+        btnSubmit.textContent='Update Delegate';
+        btnCancel.style.display='inline-block';
+      }
+    });
 
-        btnGen.disabled = true;
-        btnGen.textContent = 'Generating...';
+    // Cancel edit
+    btnCancel.addEventListener('click',resetForm);
 
-        const payload = {
-            action: 'finalize_and_generate',
-            ...state
-        };
+    function resetForm(){
+      frm.reset(); frm.temp_id.value='';
+      btnSubmit.textContent='Add Delegate';
+      btnCancel.style.display='none';
+    }
 
-        fetch('', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+    // Generate document
+    btnGen.addEventListener('click',()=>{
+      const s=loadState();
+      if(!s.delegates.length) return alert('No delegates');
+      btnGen.disabled=true; btnGen.textContent='Generating…';
+      fetch('gen3_api.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          action:'finalize_and_generate',
+          company_name:s.company_name,
+          company_address:s.company_address,
+          delegates:s.delegates
         })
-        .then(r => r.json())
-        .then(js => {
-            if (js.error) {
-                alert('Error: ' + js.error);
-            } else {
-                alert('Success! Your registration data has been saved and the Excel file is ready for download.');
-                window.location.href = js.file;
-                clearState();
-                setTimeout(() => window.location.reload(), 1000); 
-            }
-        })
-        .catch(err => {
-            console.error('Fetch Error:', err);
-            alert('A critical error occurred. Could not connect to the server.');
-        })
-        .finally(() => {
-            btnGen.disabled = false;
-            btnGen.textContent = 'Generate Final Document';
-        });
+      })
+      .then(r=>r.json())
+      .then(js=>{
+        if(js.error) alert('Error: '+js.error);
+        else{ alert('Success!'); window.location=js.file; clearState(); }
+      })
+      .catch(()=>alert('Could not connect'))
+      .finally(()=>{
+        btnGen.disabled=false;
+        btnGen.textContent='Generate Document';
+      });
     });
-});
-</script>
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-

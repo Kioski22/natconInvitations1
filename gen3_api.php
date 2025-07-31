@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
-// Only accept POST requests
+// Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 header('Content-Type: application/json');
 require_once __DIR__ . '/db.php';
 
-$payload = json_decode(file_get_contents('php://input'), true);
+$payload         = json_decode(file_get_contents('php://input'), true);
 $company_name    = trim($payload['company_name'] ?? '');
 $company_address = trim($payload['company_address'] ?? '');
 $delegates       = $payload['delegates'] ?? [];
@@ -27,6 +27,55 @@ if ($company_name === '' || count($delegates) === 0) {
     echo json_encode(['error' => 'Company name and at least one delegate are required.']);
     exit;
 }
+
+// ─── UNIQUENESS CHECKS ────────────────────────────────────────────────────────────
+// Extract arrays of values
+$prc_numbers = array_map(fn($d) => trim($d['prc_license_number'] ?? ''), $delegates);
+$emails      = array_map(fn($d) => trim($d['emailid']              ?? ''), $delegates);
+
+// 1) In‑batch duplicates?
+if (count($prc_numbers) !== count(array_unique($prc_numbers))) {
+    echo json_encode(['error' => 'Duplicate PRC license numbers found in submission.']);
+    exit;
+}
+if (count($emails) !== count(array_unique($emails))) {
+    echo json_encode(['error' => 'Duplicate email addresses found in submission.']);
+    exit;
+}
+
+// 2) Existing in DB?
+function findExisting($conn, $col, $values) {
+    $placeholders = implode(',', array_fill(0, count($values), '?'));
+    $sql = "SELECT {$col} FROM delegates WHERE {$col} IN ({$placeholders})";
+    $stmt = $conn->prepare($sql);
+    $types = str_repeat('s', count($values));
+    $stmt->bind_param($types, ...$values);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $found = [];
+    while ($row = $res->fetch_assoc()) {
+        $found[] = $row[$col];
+    }
+    $stmt->close();
+    return $found;
+}
+
+$existing_prcs   = findExisting($conn, 'prc_license_number', $prc_numbers);
+$existing_emails = findExisting($conn, 'emailid',               $emails);
+
+if (!empty($existing_prcs)) {
+    echo json_encode([
+      'error' => 'These PRC license numbers already exist: ' . implode(', ', $existing_prcs)
+    ]);
+    exit;
+}
+if (!empty($existing_emails)) {
+    echo json_encode([
+      'error' => 'These email addresses already exist: ' . implode(', ', $existing_emails)
+    ]);
+    exit;
+}
+// ────────────────────────────────────────────────────────────────────────────────
 
 // DB column names
 $delegate_fields = [
