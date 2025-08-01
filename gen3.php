@@ -1,177 +1,243 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PSME Natcon Bulk Registration</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="icon" href="natconlogoico1.ico" type="image/x-icon">
+
   <style>
- :root {
-      --bg-color: linear-gradient(to bottom right, #318b97ff, #412466ff) !important;        /* Light background (change to #000 for dark) */
-      --text-color: #212529;      /* Dark text */
-      --card-bg: #ffffff;         /* Card background */
-      --card-border: #dee2e6;
-    }
+:root {
+  --bg-color: linear-gradient(135deg, #318b97ff, #412466ff);
+  --text-color: #000000ff;
+  --input-bg: rgba(255,255,255,0.9);
+  --card-bg: rgba(255,255,255,0.85);
+  --btn-primary: #1b3a90;
+  --btn-secondary: #6c757d;
+}
 
-    body {
-      background-color: var(--bg-color) !important;
-      color: var(--text-color) !important;
-    }
+body {
+  background: var(--bg-color) !important;
+  color: var(--text-color) !important;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 1s ease-out;
+}
 
-    .btn-icon { background:none;border:none;font-size:1.1em;cursor:pointer; }
-    #delegate-area { display: none; }
-   
-  
-  
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.container {
+  background: var(--card-bg) !important;
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 2rem;
+  max-width: 800px;
+  width: 100%;
+  animation: slideUp 0.8s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+input.form-control,
+select.form-select {
+  background: var(--input-bg) !important;
+  border: 1px solid rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+input.form-control:focus,
+select.form-select:focus {
+  transform: scale(1.02);
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+
+.btn-primary {
+  background-color: var(--btn-primary) !important;
+  border-radius: 2rem;
+  padding: 0.75rem 2rem;
+  transition: transform 0.2s;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background-color: var(--btn-secondary) !important;
+  border-radius: 2rem;
+  padding: 0.5rem 1.5rem;
+  transition: transform 0.2s;
+}
+.btn-secondary:hover {
+  transform: translateY(-2px);
+}
+
+.btn-icon {
+  transition: transform 0.2s;
+}
+.btn-icon:hover {
+  transform: scale(1.2);
+  color: var(--btn-primary) !important;
+}
+
+#delegate-area { display: none; width: 100%; }
 </style>
-
-  </style>
 </head>
-<body class="d-flex flex-column h-100">
-  <div class="container py-4 rounded shadow  align-items-center justify-content-center" style="background-color: linear-gradient(to bottom right, #318b97ff, #412466ff ) !important;">
-    <!-- Company Section -->
+<body>
+  <div class="container">
     <div id="company-section">
-      <h2>Company Info</h2>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label">Company Name</label>
-          <input type="text" id="company-name" class="form-control" required minlength="2" maxlength="100" placeholder="Acme Corporation" />
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Company Address</label>
-          <input type="text" id="company-address" class="form-control" required minlength="5" maxlength="200" placeholder="123 Innovation Drive, Tech City" />
-        </div>
+      <img src="natconlogo.jpg" alt="" class = "card-img-top " style="width: 30%; height: auto; object-fit: cover; margin-left: 35%; margin-right: 35%; margin-bottom: 20px;">
+      <h2 class="text-center mb-4">PSME Natcon Bulk Registration</h2>
+      <div class="mb-3">
+        <label for="company-name" class="form-label">Company Name</label>
+        <input type="text" id="company-name" class="form-control" placeholder="Acme Corporation" required minlength="2" maxlength="100" />
       </div>
-      <div class="mt-3 text-end">
+      <div class="mb-3">
+        <label for="company-address" class="form-label">Company Address</label>
+        <input type="text" id="company-address" class="form-control" placeholder="123 Innovation Drive" required minlength="5" maxlength="200" />
+      </div>
+      <div class="text-center">
         <button id="btnInit" class="btn btn-primary">Start Registration</button>
       </div>
     </div>
 
-    <!-- Delegate Section -->
-    <div id="delegate-area" class="card shadow-sm mb-5 rounded">
-      <h2 class="card-header"id="c_header">Delegates for <span id="company-name-display"></span></h2>
-      <table class="table table-bordered" id="tblDelegates">
-        <thead>
-          <tr>
-            <th>First</th><th>Middle</th><th>Last</th><th>Email</th><th>PRC License No.</th><th>Chapter</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div id="delegate-area" class="card mt-4">
+      <img src="natconlogo.jpg" alt="" class = "card-img-top " style="width: 30%; height: auto; object-fit: cover; margin-left: 35%; margin-right: 35%;">
+      <div class="card-header text-center">
+        <h3>Delegates for <span id="company-name-display"></span></h3>
+      </div>
+      <div class="card-body">
+        <table class="table table-bordered mb-3" id="tblDelegates">
+          <thead>
+            <tr>
+              <th>First</th>
+              <th>Middle</th>
+              <th>Last</th>
+              <th>Email</th>
+              <th>PRC License #</th>
+              <th>Chapter</th>
+              <th>Mobile number</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <form id="frmDelegate" class="row g-3 needs-validation" novalidate>
+          <input type="hidden" id="temp_id" />
+          <div class="col-md-3">
+            <label class="form-label">First Name</label>
+            <input type="text" name="firstname" class="form-control" required pattern="[A-Za-z ]{2,50}" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Middle Name</label>
+            <input type="text" name="middle" class="form-control" pattern="[A-Za-z ]{0,50}" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Last Name</label>
+            <input type="text" name="lastname" class="form-control" required pattern="[A-Za-z ]{2,50}" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Suffix</label>
+          <input type="text" name="suffix" class="form-control" pattern="[A-Za-z ]{0,10}" />
+          </div>
 
-      <form id="frmDelegate" class="row g-3 needs-validation" novalidate>
-        <input type="hidden" id="temp_id" />
-        <div class="col-md-3">
-          <label class="form-label">First Name</label>
-          <input type="text" name="firstname" class="form-control" required pattern="[A-Za-z ]{2,50}" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Middle Name</label>
-          <input type="text" name="middle" class="form-control" pattern="[A-Za-z ]{0,50}" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Last Name</label>
-          <input type="text" name="lastname" class="form-control" required pattern="[A-Za-z ]{2,50}" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Suffix</label>
-          <input type="text" name="suffix" class="form-control" pattern="[A-Za-z0-9 ]{0,10}" />
-        </div>
+          <div class="col-md-4">
+            <label class="form-label">Date of Birth</label>
+            <input type="date" name="dateofbirth" class="form-control" required max="2007-07-30" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <input type="email" name="emailid" class="form-control" required maxlength="254" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Mobile Number</label>
+           <input type="tel" name="mobilenumber" class="form-control" required pattern="[0-9]{10,15}" maxlength="15" />
+          </div>
 
-        <div class="col-md-4">
-          <label class="form-label">Date of Birth</label>
-          <input type="date" name="dateofbirth" class="form-control" required max="2007-07-30" />
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Email</label>
-          <input type="email" name="emailid" class="form-control" required maxlength="254" />
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Mobile Number</label>
-          <input type="tel" name="mobilenumber" class="form-control" required pattern="^\d{10,15}$" maxlength="15" />
-        </div>
+          <div class="col-md-3">
+            <label class="form-label">PRC License Type</label>
+            <select name="prc_license_type" class="form-select" required>
+              <option value="">Select</option>
+              <option>Professional Mechanical Engineer</option>
+              <option>Registered Mechanical Engineer</option>
+              <option>Certified Plant Mechanic</option>
+              <option>ME Graduate</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">PRC License Number</label>
+            <input type="text"
+       name="prc_license_number"
+       class="form-control"
+       required
+       pattern="[0-9]{3,20}"
+       maxlength="20"
+       inputmode="numeric" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">PRC Expiration Date</label>
+            <input type="date" name="prc_license_expiration_date" class="form-control" required min="2025-01-01" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Sector</label>
+            <select name="sector" class="form-select" required>
+              <option value="">Select</option><option>Government</option><option>Private</option>
+            </select>
+          </div>
 
-        <div class="col-md-4">
-          <label class="form-label">Country</label>
-          <select id="delegates-country" name="country" class="form-select" required>
-            <option value="">Select</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Region</label>
-          <select id="region" name="region" class="form-select" required>
-            <option value="">Select</option>
-            <option>NCR</option><option>Luzon</option><option>Visayas</option><option>Mindanao</option><option>International</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Chapter</label>
-          <select id="chapter" name="chapter" class="form-select" required>
-            <option value="">Select Region First</option>
-          </select>
-        </div>
+          <div class="col-md-4">
+            <label class="form-label">Country</label>
+            <select id="delegates-country" name="country" class="form-select" required></select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Region</label>
+            <select id="region" name="region" class="form-select" required>
+              <option value="">Select Region</option>
+              <option value="NCR">NCR</option>
+              <option value="Luzon">Luzon</option>
+              <option value="Visayas">Visayas</option>
+              <option value="Mindanao">Mindanao</option>
+              <option value="International">International</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Chapter</label>
+            <select id="chapter" name="chapter" class="form-select" required></select>
+          </div>
 
-        <div class="col-md-4">
-          <label class="form-label">PRC License Type</label>
-          <select name="prc_license_type" class="form-select" required>
-            <option value="">Select</option>
-            <option>Professional Mechanical Engineer</option>
-            <option>Registered Mechanical Engineer</option>
-            <option>Certified Plant Mechanic</option>
-            <option>ME Graduate</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">PRC License Number</label>
-          <input type="text"
-                name="prc_license_number"
-                class="form-control"
-                required
-                pattern="\d{5,20}"
-                maxlength="20"
-                inputmode="numeric"
-                title="Enter 5–20 digits only" />
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">PRC Expiration Date</label>
-          <input type="date"
-                 name="prc_license_expiration_date"
-                 class="form-control"
-                 required
-                 min="2025-01-01" />
-        </div>
+          <div class="col-md-4">
+            <label class="form-label">Register Type</label>
+            <select name="register_type" class="form-select" required>
+              <option value="">Select</option><option>Regular</option><option>Life / Associate Member</option><option>Guest/Non-member</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">PWD?</label>
+            <select name="isPWD" class="form-select" required>
+              <option value="">Select</option><option>Yes</option><option>No</option>
+            </select>
+          </div>
 
-        <div class="col-md-4">
-          <label class="form-label">Sector</label>
-          <select name="sector" class="form-select" required>
-            <option value="">Select</option><option>Government</option><option>Private</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Register Type</label>
-          <select name="register_type" class="form-select" required>
-            <option value="">Select</option><option>Regular</option><option>Life / Associate Member</option><option>Guest/Non‑member</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">PWD?</label>
-          <select name="isPWD" class="form-select" required>
-            <option value="">Select</option><option>Yes</option><option>No</option>
-          </select>
-        </div>
-
-        <div class="col-12 text-end">
-          <button type="button" id="btnCancel" class="btn btn-secondary" style="display:none;">Cancel</button>
-          <button type="button" id="btnSubmit" class="btn btn-primary">Add Delegate</button>
-        </div>
-      </form>
-
-      <div class="mt-4 text-end">
+          <div class="col-12 text-end mt-3">
+            <button type="button" id="btnCancel" class="btn btn-secondary me-2" style="display:none;">Cancel</button>
+            <button type="button" id="btnSubmit" class="btn btn-primary">Add Delegate</button>
+          </div>
+        </form>
+      </div>
+      <div class="card-footer text-end">
         <button id="btnGenerate" class="btn btn-success" style="display:none;">Generate Document</button>
       </div>
     </div>
   </div>
+ 
 
   <script>
     const chapters = {
@@ -503,6 +569,7 @@ let   countries =  [
           <td>${d.emailid}</td>
           <td>${d.prc_license_number}</td>
           <td>${d.chapter}</td>
+          <td>${d.mobilenumber}</td>
           <td>
             <button class="btn-icon edit" data-id="${d.temp_id}">✏️</button>
             <button class="btn-icon delete" data-id="${d.temp_id}">🗑️</button>
@@ -566,6 +633,15 @@ let   countries =  [
         btnGen.textContent='Generate Document';
       });
     });
+
+
+
+      document.addEventListener("DOMContentLoaded", function () {
+    const suffixInput = document.querySelector('input[name="suffix"]');
+    suffixInput.addEventListener("input", function () {
+      this.value = this.value.replace(/[^A-Za-z ]/g, '');
+    });
+  });
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
