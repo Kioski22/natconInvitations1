@@ -105,13 +105,22 @@ if ($conn->query($sql) === TRUE) {
     $mail->Body = "
         <p>Good day <strong>$salutation $full_name</strong>,</p>
         <p>
-            Attached is your official invitation letter to the 73rd PSME National Convention, which will be held on <strong>October 15–18, 2025</strong>, at the <strong>SMX Convention Center, Pasay City</strong>.
+            We are pleased to attach your official invitation letter to the 73rd PSME National Convention, happening on <strong>October 15–18, 2025</strong> at the <strong>SMX Convention Center, Pasay City</strong>.<br>
+            This event promises to be an exciting gathering of mechanical engineers, industry leaders, and professionals from across the country. We encourage you to take part in this milestone event and experience valuable learning, networking, and collaboration opportunities.
         </p>
         <p>
-            Should you require further assistance or additional documents, please don't hesitate to reach out to us.
+            <strong>To confirm your attendance and secure your slot, please register as soon as possible:</strong><br>
+            <a href='https://psmeinc.org.ph/#/psme/event-details/16' target='_blank'>https://psmeinc.org.ph/#/psme/event-details/16</a>
         </p>
         <p>
-            Thank you, and we look forward to your participation!
+            For the latest updates, announcements, and event highlights, follow our official NatCon Facebook page:<br>
+            <a href='https://www.facebook.com/natconpsme' target='_blank'>https://www.facebook.com/natconpsme</a>
+        </p>
+        <p>
+            If you need any assistance or require additional documents, please feel free to contact us at any time. Our team is here to support you.
+        </p>
+        <p>
+            Thank you for your interest, and we look forward to welcoming you at the 73rd PSME National Convention!
         </p>
         <p>Sincerely,<br>
             <strong>Randy Flores</strong><br>

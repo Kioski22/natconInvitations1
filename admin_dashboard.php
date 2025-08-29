@@ -44,6 +44,23 @@ $sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
 $result_soa = $conn->query($sql_soa);
 $row_soa = $result_soa->fetch_assoc();
 $total_soa = $row_soa['total_soa'];
+
+// --- Manual SOA Generator: Get next SOA number ---
+$manual_next_soa = '';
+$sql = "SELECT soa_number FROM soa_sequence ORDER BY id DESC LIMIT 1";
+$result = $conn->query($sql);
+if ($result && $row = $result->fetch_assoc()) {
+    $last = $row['soa_number'];
+    if (is_numeric($last)) {
+        $manual_next_soa = str_pad($last + 1, 6, '0', STR_PAD_LEFT);
+    } else if (preg_match('/(\d+)$/', $last, $m)) {
+        $manual_next_soa = 'SOA-' . str_pad($m[1] + 1, 6, '0', STR_PAD_LEFT);
+    } else {
+        $manual_next_soa = 'SOA-000001';
+    }
+} else {
+    $manual_next_soa = 'SOA-000001';
+}
 ?>
 
 <!DOCTYPE html>
@@ -52,94 +69,439 @@ $total_soa = $row_soa['total_soa'];
     <title>PSME Admin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { overflow-x: hidden; background: #f8f9fa; }
+        :root {
+            --primary-color: #004085;
+            --primary-light: #0056b3;
+            --secondary-color: #6c757d;
+            --accent-color: #007bff;
+            --bg-light: #f8f9fa;
+            --border-color: #e9ecef;
+            --text-muted: #6c757d;
+            --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-light);
+            overflow-x: hidden;
+            color: #2c3e50;
+        }
+
         .sidebar {
-            height: 100vh; background: linear-gradient(45deg, #004085, #007bff); color: white;
-            position: fixed; width: 220px; box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 260px;
+            background: #fff;
+            border-right: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md);
+            z-index: 1000;
+            transition: all 0.3s ease;
         }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .sidebar-header h4 {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+
         .sidebar a {
-            color: white; display: block; padding: 12px 20px; text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 0.875rem 1.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: none;
+            font-weight: 500;
         }
-        .sidebar a:hover, .sidebar a.active-link { background: rgba(255,255,255,0.3); font-weight: bold; }
-        .content { margin-left: 220px; padding: 30px; }
-        .dashboard-header { background: linear-gradient(45deg, #004085, #007bff); color: white; padding: 20px; border-radius: 10px; }
-        .table th { background: #004085; color: white; }
+
+        .sidebar a i {
+            width: 20px;
+            margin-right: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .sidebar a:hover {
+            background: #f8f9fa;
+            color: var(--primary-color);
+        }
+
+        .sidebar a.active-link {
+            background: var(--primary-color);
+            color: white;
+            position: relative;
+        }
+
+        .sidebar a.active-link::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: var(--accent-color);
+        }
+
+        .content {
+            margin-left: 260px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .page-header h2 {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 1.75rem;
+        }
+
+        .page-header p {
+            color: var(--text-muted);
+            margin: 0.5rem 0 0 0;
+            font-size: 0.95rem;
+        }
+
+        .stats-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stats-card .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stats-card.primary .icon {
+            background: rgba(0, 64, 133, 0.1);
+            color: var(--primary-color);
+        }
+
+        .stats-card.success .icon {
+            background: rgba(25, 135, 84, 0.1);
+            color: #198754;
+        }
+
+        .stats-card h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        .stats-card p {
+            color: var(--text-muted);
+            margin: 0.25rem 0 0 0;
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.25rem 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .table {
+            margin: 0;
+        }
+
+        .table th {
+            background: var(--bg-light);
+            color: var(--primary-color);
+            font-weight: 600;
+            border: none;
+            padding: 1rem;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .table td {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            padding: 0.625rem 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-light);
+            border-color: var(--primary-light);
+            transform: translateY(-1px);
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(0, 64, 133, 0.25);
+        }
+
+        .pagination .page-link {
+            border-radius: 8px;
+            margin: 0 0.125rem;
+            border: 1px solid var(--border-color);
+            color: var(--primary-color);
+        }
+
+        .pagination .page-item.active .page-link {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .section-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .section-header h4 {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h4 class="text-center">Admin Panel</h4>
-    <hr style="background: white;">
-    <a href="javascript:void(0);" onclick="showTab('dashboard')" class="active-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
-    <a href="javascript:void(0);" onclick="showTab('individual')"><i class="bi bi-person-lines-fill"></i> Individual</a>
-    <a href="javascript:void(0);" onclick="showTab('company')"><i class="bi bi-building"></i> Company</a>
-    <a href="javascript:void(0);" onclick="showTab('soaGenerator')"><i class="bi bi-file-earmark-pdf"></i> SOA Generator</a>
-    <a href="javascript:void(0);" onclick="showTab('soaReleased')"><i class="bi bi-check-circle"></i> SOA Released</a>
-    <a href="logout.php" class="text-white"><i class="bi bi-box-arrow-right"></i> Logout</a>
+    <div class="sidebar-header">
+        <h4><i class="bi bi-shield-check me-2"></i>Admin Panel</h4>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="javascript:void(0);" onclick="showTab('dashboard')" class="active-link">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('individual')">
+            <i class="bi bi-person-lines-fill"></i> Individual
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('company')">
+            <i class="bi bi-building"></i> Company
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('soaGenerator')">
+            <i class="bi bi-file-earmark-pdf"></i> SOA Generator
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('manualSoa')">
+            <i class="bi bi-pencil-square"></i> Manual SOA
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('soaReleased')">
+            <i class="bi bi-check-circle"></i> SOA Released
+        </a>
+        <a href="logout.php" style="margin-top: auto; border-top: 1px solid var(--border-color);">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+    </nav>
 </div>
 
 <div class="content">
-
-    <div class="dashboard-header text-center">
-        <h2>PSME Invitation Admin Dashboard</h2>
+    <div class="page-header">
+        <h2>PSME Invitation Management</h2>
+        <p>Manage invitations, companies, and SOA generation for the 73rd PSME National Convention</p>
     </div>
 
     <!-- Dashboard Tab -->
     <div id="dashboardTab">
-        <h4>Overall Status</h4>
-        <div class="card text-white bg-success mb-3">
-            <div class="card-header"><i class="bi bi-envelope-fill"></i> Emails Sent</div>
-            <div class="card-body text-center">
-                <h1><?= $total_sent ?></h1>
-                <p>Total invitations sent</p>
+        <div class="section-header">
+            <h4>Overview</h4>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="stats-card success">
+                    <div class="icon">
+                        <i class="bi bi-envelope-check"></i>
+                    </div>
+                    <h3><?= number_format($total_sent) ?></h3>
+                    <p>Invitations Sent</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="stats-card primary">
+                    <div class="icon">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </div>
+                    <h3><?= number_format($total_soa) ?></h3>
+                    <p>SOAs Released</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="stats-card primary">
+                    <div class="icon">
+                        <i class="bi bi-building"></i>
+                    </div>
+                    <h3><?= number_format(count($companies)) ?></h3>
+                    <p>Companies</p>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Individual Tab -->
     <div id="individualTab" style="display:none;">
-        <h4>Individual Invitations</h4>
-        <table class="table table-bordered table-hover">
-            <thead>
-                <tr>
-                    <th>Event</th><th>Company</th><th>Email</th><th>Name</th><th>Designation</th><th>Address</th><th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php
-            // Get total records for pagination
-            $sql_count = "SELECT COUNT(*) as total FROM invitations";
-            $result_count = $conn->query($sql_count);
-            $total_records = $result_count->fetch_assoc()['total'];
-            $total_pages = ceil($total_records / $limit);
+        <div class="section-header">
+            <h4>Individual Invitations</h4>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-person-lines-fill me-2"></i>Invitation Records
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>Company</th>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Designation</th>
+                            <th>Address</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    // Get total records for pagination
+                    $sql_count = "SELECT COUNT(*) as total FROM invitations";
+                    $result_count = $conn->query($sql_count);
+                    $total_records = $result_count->fetch_assoc()['total'];
+                    $total_pages = ceil($total_records / $limit);
 
-            $sql = "SELECT * FROM invitations ORDER BY event, company LIMIT $limit OFFSET $offset";
-            $result = $conn->query($sql);
-            if ($result->num_rows > 0):
-                while($row = $result->fetch_assoc()):
-            ?>
-                <tr>
-                    <td><?= htmlspecialchars($row['event']) ?></td>
-                    <td><?= htmlspecialchars($row['company']) ?></td>
-                    <td><?= htmlspecialchars($row['email']) ?></td>
-                    <td><?= htmlspecialchars($row['full_name']) ?></td>
-                    <td><?= htmlspecialchars($row['designation']) ?></td>
-                    <td><?= htmlspecialchars($row['address']) ?></td>
-                    <td><?= htmlspecialchars($row['status']) ?></td>
-                </tr>
-            <?php endwhile; else: ?>
-                <tr><td colspan="7" class="text-center">No records found.</td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
+                    $sql = "SELECT * FROM invitations ORDER BY event, company LIMIT $limit OFFSET $offset";
+                    $result = $conn->query($sql);
+                    if ($result->num_rows > 0):
+                        while($row = $result->fetch_assoc()):
+                    ?>
+                        <tr>
+                            <td><?= htmlspecialchars($row['event']) ?></td>
+                            <td><?= htmlspecialchars($row['company']) ?></td>
+                            <td><?= htmlspecialchars($row['email']) ?></td>
+                            <td><?= htmlspecialchars($row['full_name']) ?></td>
+                            <td><?= htmlspecialchars($row['designation']) ?></td>
+                            <td><?= htmlspecialchars($row['address']) ?></td>
+                            <td>
+                                <span class="badge bg-<?= $row['status'] == 'sent' ? 'success' : 'warning' ?>">
+                                    <?= htmlspecialchars($row['status']) ?>
+                                </span>
+                            </td>
+                        </tr>
+                    <?php endwhile; else: ?>
+                        <tr>
+                            <td colspan="7" class="empty-state">
+                                <i class="bi bi-inbox"></i>
+                                <p>No invitation records found.</p>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
         <!-- Pagination controls -->
-        <nav>
+        <?php if ($total_pages > 1): ?>
+        <nav class="mt-4">
             <ul class="pagination justify-content-center">
                 <?php if ($page > 1): ?>
                     <li class="page-item">
-                        <a class="page-link" href="?page=<?= $page-1 ?>" onclick="showTab('individual'); return false;">Previous</a>
+                        <a class="page-link" href="?page=<?= $page-1 ?>" onclick="showTab('individual'); return false;">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </a>
                     </li>
                 <?php endif; ?>
                 <?php for ($i = 1; $i <= $total_pages; $i++): ?>
@@ -149,112 +511,400 @@ $total_soa = $row_soa['total_soa'];
                 <?php endfor; ?>
                 <?php if ($page < $total_pages): ?>
                     <li class="page-item">
-                        <a class="page-link" href="?page=<?= $page+1 ?>" onclick="showTab('individual'); return false;">Next</a>
+                        <a class="page-link" href="?page=<?= $page+1 ?>" onclick="showTab('individual'); return false;">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </a>
                     </li>
                 <?php endif; ?>
             </ul>
         </nav>
+        <?php endif; ?>
     </div>
 
     <!-- Company Tab -->
     <div id="companyTab" style="display:none;">
-        <h4>Company Summary</h4>
-        <p>This section is under development.</p>
+        <div class="section-header">
+            <h4>Company Management</h4>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-building me-2"></i>Company Overview
+            </div>
+            <div class="card-body">
+                <div class="empty-state">
+                    <i class="bi bi-tools"></i>
+                    <h5>Under Development</h5>
+                    <p>This section is currently being developed and will be available soon.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- SOA Generator Tab -->
     <div id="soaGeneratorTab" style="display:none;">
-        <h4>Manual SOA Generator</h4>
-        <form action="generate_soa_manual.php" method="POST" target="_blank">
-            <div class="mb-3">
-                <label>Select Company</label>
-                <select name="company_id" id="companySelect" class="form-select" required>
-                    <option value="" disabled selected>Select company</option>
-                    <?php foreach ($companies as $comp): ?>
-                       <option 
-                            value="<?= htmlspecialchars($comp['company_id']) ?>" 
-                            data-address="<?= htmlspecialchars($comp['company_address']) ?>">
-                            <?= htmlspecialchars($comp['company_name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+        <div class="section-header">
+            <h4>SOA Generator</h4>
+            <p class="text-muted mb-0">Generate professional Statement of Account documents</p>
+        </div>
+        
+        <div class="row g-4">
+            <!-- Company Information Card -->
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-building me-2"></i>
+                            <h6 class="mb-0">Company Information</h6>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form id="soaForm" action="generate_soa_manual.php" method="POST" target="_blank">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">
+                                        <i class="bi bi-search me-1"></i>Select Company
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <select name="company_id" id="companySelect" class="form-select form-select-lg" required>
+                                        <option value="" disabled selected>
+                                            <i class="bi bi-building"></i> Choose a company...
+                                        </option>
+                                        <?php foreach ($companies as $comp): ?>
+                                           <option 
+                                                value="<?= htmlspecialchars($comp['company_id']) ?>" 
+                                                data-address="<?= htmlspecialchars($comp['company_address']) ?>">
+                                                <?= htmlspecialchars($comp['company_name']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="form-text">Select the company to generate SOA for</div>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">
+                                        <i class="bi bi-geo-alt me-1"></i>Company Address
+                                    </label>
+                                    <textarea name="company_address" id="companyAddress" class="form-control" rows="2" readonly required 
+                                              placeholder="Address will be auto-filled when you select a company"></textarea>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        <i class="bi bi-receipt me-1"></i>TIN Number
+                                    </label>
+                                    <input type="text" name="tin" class="form-control" placeholder="e.g., 123-456-789-000">
+                                    <div class="form-text">Tax Identification Number</div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        <i class="bi bi-briefcase me-1"></i>Business Style
+                                    </label>
+                                    <input type="text" name="business_style" class="form-control" placeholder="e.g., Corporation, Partnership">
+                                    <div class="form-text">Type of business organization</div>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">
+                                        <i class="bi bi-card-text me-1"></i>Particulars
+                                    </label>
+                                    <textarea name="particulars" class="form-control" rows="3" 
+                                              placeholder="Enter description of services or event details..."></textarea>
+                                    <div class="form-text">Brief description of the service or event</div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
-
-            <div class="mb-3">
-                <label>Address</label>
-                <input type="text" name="company_address" id="companyAddress" class="form-control" readonly required>
+            
+            <!-- Quick Actions Card -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-lightning me-2"></i>
+                            <h6 class="mb-0">Quick Actions</h6>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-primary" id="previewBtn" disabled>
+                                <i class="bi bi-eye me-2"></i>Preview SOA
+                            </button>
+                            <button type="submit" form="soaForm" class="btn btn-primary" id="generateBtn" disabled>
+                                <i class="bi bi-file-earmark-pdf me-2"></i>Generate PDF
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="clearBtn">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Clear Form
+                            </button>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="text-center">
+                            <div class="d-flex align-items-center justify-content-center text-muted">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <small>Select a company to load participants</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Summary Card -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-calculator me-2"></i>
+                            <h6 class="mb-0">Summary</h6>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h4 class="mb-1" id="participantCount">0</h4>
+                                    <small class="text-muted">Participants</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="mb-1" id="totalAmount">₱0.00</h4>
+                                <small class="text-muted">Total Amount</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </div>
 
-            <div class="mb-3">
-                <label>TIN</label>
-                <input type="text" name="tin" class="form-control" placeholder="Enter TIN">
+        <!-- Participants Section -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-people me-2"></i>
+                        <h6 class="mb-0">Participants</h6>
+                    </div>
+                    <div id="loadingIndicator" style="display: none;">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <small class="text-muted ms-2">Loading participants...</small>
+                    </div>
+                </div>
             </div>
-
-            <div class="mb-3">
-                <label>Business Style</label>
-                <input type="text" name="business_style" class="form-control" placeholder="Enter business style">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="participantsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 60px;">#</th>
+                                <th style="width: 120px;">Item No.</th>
+                                <th>Participant Name</th>
+                                <th style="width: 200px;">Membership Type</th>
+                                <th style="width: 130px;">Registration Fee</th>
+                                <th style="width: 130px;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-person-plus fs-1 text-muted mb-3"></i>
+                                        <h6 class="text-muted">No Company Selected</h6>
+                                        <p class="text-muted mb-0">Please select a company to load participants</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-
-            <div class="mb-3">
-                <label>Particulars</label>
-                <textarea name="particulars" class="form-control" rows="2" placeholder="Enter particulars"></textarea>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-bordered" id="participantsTable">
-                    <thead class="table-primary">
-                        <tr>
-                            <th>No.</th>
-                            <th>Item No.</th>
-                            <th>Participant Name</th>
-                            <th>Type of Membership</th>
-                            <th>Registration Fee</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Generate SOA PDF</button>
-        </form>
+        </div>
     </div>
 
     <!-- SOA Released Tab -->
     <div id="soaReleasedTab" style="display:none;">
-        <h4>SOA Released</h4>
-        <div class="card text-white bg-primary mb-3">
-            <div class="card-header"><i class="bi bi-check-circle"></i> SOA Released</div>
-            <div class="card-body text-center">
-                <h1><?= $total_soa ?></h1>
-                <p>Total SOAs released</p>
+        <div class="section-header">
+            <h4>SOA Released</h4>
+        </div>
+        
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="stats-card primary">
+                    <div class="icon">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <h3><?= number_format($total_soa) ?></h3>
+                    <p>SOAs Released</p>
+                </div>
             </div>
         </div>
 
-        <!-- Sample table of released SOAs -->
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>SOA Number</th>
-                    <th>Date Released</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php
-            $sql = "SELECT soa_number, created_at FROM soa_sequence ORDER BY id DESC";
-            $result = $conn->query($sql);
-            if ($result->num_rows > 0):
-                while($row = $result->fetch_assoc()):
-            ?>
-                <tr>
-                    <td><?= htmlspecialchars($row['soa_number']) ?></td>
-                    <td><?= htmlspecialchars($row['created_at']) ?></td>
-                </tr>
-            <?php endwhile; else: ?>
-                <tr><td colspan="2" class="text-center">No SOA released records found.</td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-file-earmark-check me-2"></i>Released SOA Records
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>SOA Number</th>
+                            <th>Date Released</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    $sql = "SELECT soa_number, created_at FROM soa_sequence ORDER BY id DESC";
+                    $result = $conn->query($sql);
+                    if ($result->num_rows > 0):
+                        while($row = $result->fetch_assoc()):
+                    ?>
+                        <tr>
+                            <td>
+                                <strong><?= htmlspecialchars($row['soa_number']) ?></strong>
+                            </td>
+                            <td><?= date('M d, Y g:i A', strtotime($row['created_at'])) ?></td>
+                        </tr>
+                    <?php endwhile; else: ?>
+                        <tr>
+                            <td colspan="2" class="empty-state">
+                                <i class="bi bi-file-earmark-x"></i>
+                                <p>No SOA records found.</p>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual SOA Generator Tab -->
+    <div id="manualSoaTab" style="display:none;">
+        <div class="section-header mb-4">
+            <h4><i class="bi bi-file-earmark-pdf me-2"></i>Manual SOA Generator</h4>
+            <p class="text-muted mb-0">Manually create a Statement of Account with custom participants</p>
+        </div>
+        <form id="manualSoaForm" action="generate_soa_manual.php" method="POST" target="_blank">
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-building me-2"></i>Company Information
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">SOA Number</label>
+                                    <input type="text" class="form-control" name="soa_number" value="<?= htmlspecialchars($manual_next_soa) ?>" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Date</label>
+                                    <input type="text" class="form-control" value="<?= date('Y-m-d') ?>" readonly>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Company Name</label>
+                                    <input type="text" class="form-control" name="company_name" required>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Company Address</label>
+                                    <input type="text" class="form-control" name="company_address" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">TIN</label>
+                                    <input type="text" class="form-control" name="tin">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Business Style</label>
+                                    <input type="text" class="form-control" name="business_style">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Particulars</label>
+                                    <textarea class="form-control" name="particulars" rows="2"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-people me-2"></i>Participants
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0" id="manualParticipantsTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 60px;">#</th>
+                                            <th>Name</th>
+                                            <th style="width: 200px;">Membership Type</th>
+                                            <th style="width: 130px;">Reg. Fee</th>
+                                            <th style="width: 130px;">Amount</th>
+                                            <th style="width: 60px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="empty-row">
+                                            <td colspan="6" class="text-center py-4">
+                                                <div class="empty-state">
+                                                    <i class="bi bi-person-plus"></i>
+                                                    <div>Add participants below</div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addManualParticipantBtn">
+                                <i class="bi bi-plus-circle me-1"></i>Add Participant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-lightning me-2"></i>
+                                <h6 class="mb-0">Quick Actions</h6>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-outline-primary" id="manualPreviewBtn">
+                                    <i class="bi bi-eye me-2"></i>Preview SOA
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-file-earmark-pdf me-2"></i>Generate PDF
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="clearManualBtn">
+                                    <i class="bi bi-arrow-clockwise me-2"></i>Clear Form
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="summary-card p-4 mt-3 mb-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="bi bi-calculator me-2 fs-4 text-primary"></i>
+                            <h6 class="mb-0">Summary</h6>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h4 class="mb-1" id="manualParticipantCount">0</h4>
+                                <small class="text-muted">Participants</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="mb-1" id="manualTotalAmount">₱0.00</h4>
+                                <small class="text-muted">Total Amount</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
     </div>
 
 </div>
@@ -262,7 +912,7 @@ $total_soa = $row_soa['total_soa'];
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function showTab(tab) {
-    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'soaGeneratorTab', 'soaReleasedTab'];
+    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'soaGeneratorTab', 'soaReleasedTab', 'manualSoaTab'];
     tabs.forEach(id => document.getElementById(id).style.display = (id === tab + 'Tab') ? 'block' : 'none');
 
     const links = document.querySelectorAll('.sidebar a');
@@ -278,50 +928,171 @@ $('#companySelect').on('change', function(){
     var address = $(this).find(':selected').data('address');
     $('#companyAddress').val(address);
 
-    var company_id = $(this).val(); // use the selected value directly
+    var company_id = $(this).val();
+    console.log('Selected company_id:', company_id); // Debug log
+    
+    // Show loading indicator and reset counters
+    $('#loadingIndicator').show();
+    $('#participantCount').text('0');
+    $('#totalAmount').text('₱0.00');
+    $('#previewBtn, #generateBtn').prop('disabled', true);
 
     $.ajax({
         url: 'get_participants.php',
         type: 'POST',
-        data: { company_id: company_id }, // ✅ fixed variable
+        data: { company_id: company_id },
         dataType: 'json',
         success: function(data){
+            console.log('Received data:', data); // Debug log
+            $('#loadingIndicator').hide();
+            
             var tbody = $('#participantsTable tbody');
             tbody.empty();
+            
+            // Check if response contains an error
+            if (data.error) {
+                tbody.append(`
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-exclamation-triangle fs-1 text-danger mb-3"></i>
+                                <h6 class="text-danger">Error Loading Participants</h6>
+                                <p class="text-muted mb-0">${data.message}</p>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+                return;
+            }
+            
             if(data.length > 0){
                 $.each(data, function(i, name){
-                    tbody.append(
-                        '<tr>' +
-                        '<td>'+(i+1)+'</td>' +
-                        '<td><select name="item_number[]" class="form-select" required onchange="updateMembershipType(this)">' +
-                            '<option value="">Select</option>' +
-                            '<option value="0001">0001</option>' +
-                            '<option value="0002">0002</option>' +
-                            '<option value="0003">0003</option>' +
-                            '<option value="0004">0004</option>' +
-                            '<option value="0005">0005</option>' +
-                            '<option value="0006">0006</option>' +
-                            '<option value="0007">0007</option>' +
-                            '<option value="0008">0008</option>' +
-                            '<option value="0009">0009</option>' +
-                            '<option value="0010">0010</option>' +
-                            '<option value="0011">0011</option>' +
-                            '<option value="0012">0012</option>' +
-                            '<option value="0013">0013</option>' +
-                            '<option value="0014">0014</option>' +
-                        '</select></td>' +
-                        '<td><input type="hidden" name="participants[]" value="'+name+'">'+name+'</td>' +
-                        '<td><input type="text" name="membership_type[]" class="form-control" readonly></td>' +
-                        '<td><input type="number" name="registration_fee[]" step="0.01" class="form-control" required></td>' +
-                        '<td><input type="number" name="amount[]" step="0.01" class="form-control" required></td>' +
-                        '</tr>'
-                    );
+                    tbody.append(`
+                        <tr class="participant-row">
+                            <td class="text-center fw-bold">${i+1}</td>
+                            <td>
+                                <select name="item_number[]" class="form-select form-select-sm" required onchange="updateMembershipType(this)">
+                                    <option value="">Select Item</option>
+                                    <option value="0001">0001</option>
+                                    <option value="0002">0002</option>
+                                    <option value="0003">0003</option>
+                                    <option value="0004">0004</option>
+                                    <option value="0005">0005</option>
+                                    <option value="0006">0006</option>
+                                    <option value="0007">0007</option>
+                                    <option value="0008">0008</option>
+                                    <option value="0009">0009</option>
+                                    <option value="0010">0010</option>
+                                    <option value="0011">0011</option>
+                                    <option value="0012">0012</option>
+                                    <option value="0013">0013</option>
+                                    <option value="0014">0014</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="hidden" name="participants[]" value="${name}">
+                                <div class="fw-semibold">${name}</div>
+                            </td>
+                            <td>
+                                <input type="text" name="membership_type[]" class="form-control form-control-sm" readonly>
+                            </td>
+                            <td>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">₱</span>
+                                    <input type="number" name="registration_fee[]" step="0.01" class="form-control amount-input" required>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">₱</span>
+                                    <input type="number" name="amount[]" step="0.01" class="form-control amount-input" required>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
                 });
+                
+                // Update participant count and enable buttons
+                $('#participantCount').text(data.length);
+                $('#previewBtn, #generateBtn').prop('disabled', false);
+                addAmountChangeListeners();
+                
             } else {
-                tbody.append('<tr><td colspan="6" class="text-center">No participants found.</td></tr>');
+                tbody.append(`
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-person-x fs-1 text-muted mb-3"></i>
+                                <h6 class="text-muted">No Participants Found</h6>
+                                <p class="text-muted mb-0">This company has no registered participants</p>
+                            </div>
+                        </td>
+                    </tr>
+                `);
             }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX Error:', {
+                status: status,
+                error: error,
+                response: xhr.responseText
+            });
+            $('#loadingIndicator').hide();
+            
+            var tbody = $('#participantsTable tbody');
+            tbody.empty();
+            tbody.append(`
+                <tr>
+                    <td colspan="6" class="text-center py-5">
+                        <div class="empty-state">
+                            <i class="bi bi-wifi-off fs-1 text-danger mb-3"></i>
+                            <h6 class="text-danger">Connection Error</h6>
+                            <p class="text-muted mb-0">Unable to load participants: ${error}</p>
+                        </div>
+                    </td>
+                </tr>
+            `);
         }
     });
+});
+
+// Add amount change listeners for real-time total calculation
+function addAmountChangeListeners() {
+    $('.amount-input').on('input', function() {
+        calculateTotal();
+    });
+}
+
+// Calculate and display total amount
+function calculateTotal() {
+    let total = 0;
+    $('input[name="amount[]"]').each(function() {
+        const value = parseFloat($(this).val()) || 0;
+        total += value;
+    });
+    $('#totalAmount').text('₱' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+}
+
+// Clear form functionality
+$('#clearBtn').on('click', function() {
+    if (confirm('Are you sure you want to clear all form data?')) {
+        $('#soaForm')[0].reset();
+        $('#companyAddress').val('');
+        $('#participantsTable tbody').html(`
+            <tr>
+                <td colspan="6" class="text-center py-5">
+                    <div class="empty-state">
+                        <i class="bi bi-person-plus fs-1 text-muted mb-3"></i>
+                        <h6 class="text-muted">No Company Selected</h6>
+                        <p class="text-muted mb-0">Please select a company to load participants</p>
+                    </div>
+                </td>
+            </tr>
+        `);
+        $('#participantCount').text('0');
+        $('#totalAmount').text('₱0.00');
+        $('#previewBtn, #generateBtn').prop('disabled', true);
+    }
 });
 
 function updateMembershipType(select){
@@ -347,6 +1118,14 @@ function updateMembershipType(select){
     row.find('input[name="membership_type[]"]').val(data.type);
     row.find('input[name="registration_fee[]"]').val(data.price);
     row.find('input[name="amount[]"]').val(data.price);
+    
+    // Add visual feedback
+    if (data.type) {
+        $(select).removeClass('is-invalid').addClass('is-valid');
+    }
+    
+    // Recalculate total
+    calculateTotal();
 }
 
 // Ensure correct tab is shown on page reload with pagination
@@ -354,6 +1133,92 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.location.search.includes('page=')) {
         showTab('individual');
     }
+});
+
+// Manual SOA Tab logic
+function updateManualSummary() {
+    let count = 0, total = 0;
+    $('#manualParticipantsTable tbody tr').each(function() {
+        if (!$(this).hasClass('empty-row')) {
+            count++;
+            const amt = parseFloat($(this).find('input[name="amount[]"]').val()) || 0;
+            total += amt;
+        }
+    });
+    $('#manualParticipantCount').text(count);
+    $('#manualTotalAmount').text('₱' + total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
+}
+
+function addManualParticipantRow() {
+    if ($('#manualParticipantsTable .empty-row').length) $('#manualParticipantsTable tbody').empty();
+    const idx = $('#manualParticipantsTable tbody tr').length;
+    $('#manualParticipantsTable tbody').append(`
+        <tr>
+            <td class="text-center fw-bold">${idx + 1}</td>
+            <td><input type="text" name="participant_name[]" class="form-control form-control-sm" required></td>
+            <td><input type="text" name="membership_type[]" class="form-control form-control-sm" required></td>
+            <td><input type="number" name="registration_fee[]" class="form-control form-control-sm amount-input" min="0" step="0.01" required></td>
+            <td><input type="number" name="amount[]" class="form-control form-control-sm amount-input" min="0" step="0.01" required></td>
+            <td><button type="button" class="btn btn-link text-danger p-0 removeManualParticipantBtn"><i class="bi bi-trash"></i></button></td>
+        </tr>
+    `);
+    updateManualParticipantNumbers();
+    updateManualSummary();
+}
+
+function updateManualParticipantNumbers() {
+    $('#manualParticipantsTable tbody tr').each(function(i) {
+        $(this).find('td:first').text(i + 1);
+    });
+}
+
+$('#addManualParticipantBtn').on('click', addManualParticipantRow);
+$('#manualParticipantsTable').on('input', '.amount-input', updateManualSummary);
+$('#manualParticipantsTable').on('click', '.removeManualParticipantBtn', function() {
+    $(this).closest('tr').remove();
+    if ($('#manualParticipantsTable tbody tr').length === 0) {
+        $('#manualParticipantsTable tbody').html(`
+            <tr class="empty-row">
+                <td colspan="6" class="text-center py-4">
+                    <div class="empty-state">
+                        <i class="bi bi-person-plus"></i>
+                        <div>Add participants below</div>
+                    </div>
+                </td>
+            </tr>
+        `);
+    }
+    updateManualParticipantNumbers();
+    updateManualSummary();
+});
+$('#clearManualBtn').on('click', function() {
+    if (confirm('Clear all form data?')) {
+        $('#manualSoaForm')[0].reset();
+        $('#manualParticipantsTable tbody').html(`
+            <tr class="empty-row">
+                <td colspan="6" class="text-center py-4">
+                    <div class="empty-state">
+                        <i class="bi bi-person-plus"></i>
+                        <div>Add participants below</div>
+                    </div>
+                </td>
+            </tr>
+        `);
+        updateManualSummary();
+    }
+});
+
+$('#manualPreviewBtn').on('click', function() {
+    var form = $('#manualSoaForm');
+    var tempForm = form.clone();
+    tempForm.attr('target', '_blank');
+    tempForm.attr('action', 'generate_soa_manual.php');
+    tempForm.attr('method', 'POST');
+    tempForm.find('button[type="submit"], #manualPreviewBtn, #clearManualBtn').remove();
+    tempForm.css('display', 'none');
+    $('body').append(tempForm);
+    tempForm.submit();
+    tempForm.remove();
 });
 </script>
 

@@ -3,6 +3,10 @@ require 'vendor/autoload.php';
 require_once('vendor/tecnickcom/tcpdf/tcpdf.php');
 require 'db.php'; // Include your DB connection here
 
+if (!$conn) {
+    die("Database connection failed: " . mysqli_connect_error());
+}
+
 // Extend TCPDF to create custom Footer without page number
 class MYPDF extends TCPDF {
     public function Footer() {
@@ -61,26 +65,28 @@ if (!empty($company_id)) {
     }
 
     // Get participants from delegates table
-    $stmt_participants = $conn->prepare("SELECT delegates_fname, delegates_mname, delegates_lname, delegates_suffix FROM delegates WHERE company_id = ?");
+    $stmt_participants = $conn->prepare("SELECT firstname, middle, lastname, suffix FROM delegates WHERE company_id = ?");
     $stmt_participants->bind_param("i", $company_id);
     $stmt_participants->execute();
     $result_participants = $stmt_participants->get_result();
 
-    while ($row = $result_participants->fetch_assoc()) {
-        $full_name = $row['delegates_fname'];
+   while ($row = $result_participants->fetch_assoc()) {
+    $full_name = $row['firstname'];
 
-        if (!empty($row['delegates_mname'])) {
-            $full_name .= ' ' . $row['delegates_mname'];
-        }
-
-        $full_name .= ' ' . $row['delegates_lname'];
-
-        if (!empty($row['delegates_suffix'])) {
-            $full_name .= ', ' . $row['delegates_suffix'];
-        }
-
-        $participants[] = $full_name;
+    if (!empty($row['middle'])) {
+        $full_name .= ' ' . $row['middle'];
     }
+
+    if (!empty($row['lastname'])) {
+        $full_name .= ' ' . $row['lastname'];
+    }
+
+    if (!empty($row['suffix'])) {
+        $full_name .= ', ' . $row['suffix'];
+    }
+
+    $participants[] = $full_name;
+}
 }
 $item_numbers = $_POST['item_number'] ?? [];
 $membership_types = $_POST['membership_type'] ?? [];
