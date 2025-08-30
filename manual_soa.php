@@ -40,13 +40,18 @@ if ($result && $row = $result->fetch_assoc()) {
 </head>
 <body>
 <div class="container py-5">
+    <div class="mb-4">
+        <a href="admin_dashboard.php" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="section-header mb-4">
                 <h4><i class="bi bi-file-earmark-pdf me-2"></i>Manual SOA Generator</h4>
                 <p class="text-muted mb-0">Manually create a Statement of Account with custom participants</p>
             </div>
-            <form id="manualSoaForm" action="generate_soa_manual.php" method="POST" target="_blank">
+            <form id="manualSoaForm" action="generate_soa.php" method="POST" target="_blank">
                 <div class="row g-4">
                     <div class="col-lg-8">
                         <div class="card mb-4">
