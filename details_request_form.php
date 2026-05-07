@@ -43,6 +43,10 @@
             border-top-left-radius: 10px;
             border-top-right-radius: 10px;
         }
+        .card-header img{
+            border-radius: 50%;
+            background
+        }
 
         .card-body {
             padding: 2rem;
@@ -91,7 +95,7 @@
 
     <!-- Blurred background image -->
     <div class="bg-blur">
-        <img src="img/natconlogo.jpg" alt="Background">
+        <img src="74th NatCon Logo.svg" alt="Background">
     </div>
 
     <!-- Loading Overlay -->
@@ -111,16 +115,16 @@
                 <!-- Card -->
                 <div class="card shadow">
                     <div class="card-header text-white text-center">
-                        <img src="img/natconlogo.jpg" alt="PSME Logo" class="psme-logo mb-2">
+                        <img src="74th NatCon Logo.svg" alt="PSME Logo" class="psme-logo mb-2">
                         <h4 class="mb-0">Invitation Request Form</h4>
-                        <small>73rd PSME National Convention</small>
+                        <small>74th PSME National Convention</small>
                     </div>
 
                     <div class="card-body">
                         <form id="invitationForm" action="process_request.php" method="POST">
                             <div class="mb-3">
                                 <label class="form-label">Event</label>
-                                <input type="text" name="event" class="form-control" value="73rd PSME National Convention" readonly>
+                                <input type="text" name="event" class="form-control" value="74th PSME National Convention" readonly>
                             </div>
 
                             <div class="mb-3">

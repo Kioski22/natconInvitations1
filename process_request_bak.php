@@ -96,12 +96,12 @@ if ($conn->query($sql) === TRUE) {
         // Email content
         $mail->setFrom('delegates@psmeinc.org.ph', 'PSME Invitation Team');
         $mail->addAddress($email, $full_name);
-        $mail->Subject = 'Your 73rd PSME NatCon Invitation';
+        $mail->Subject = 'Your 74th PSME NatCon Invitation';
         $mail->Body = "Dear $full_name,
 
 A pleasant day!
 
-Thank you for your interest in the upcoming 73rd PSME National Convention. We’re delighted to assist you with your group’s registration.
+Thank you for your interest in the upcoming 74th PSME National Convention. We’re delighted to assist you with your group’s registration.
 
 For bulk registration, kindly accomplish the attached Excel form. This will serve as the basis for your delegates’ official registration and for the preparation of your Statement of Account (SOA).
 
@@ -116,7 +116,7 @@ Company TIN:
 Please input your members' names and details using the following link:
 [Insert your input form link here]
 
-Please note that food provisions and participant kits (including meal stubs) will only be provided to those who are officially registered under the 73rd NatCon.
+Please note that food provisions and participant kits (including meal stubs) will only be provided to those who are officially registered under the 74th NatCon.
 
 Should you have any further questions or need additional assistance, please don’t hesitate to reach out.
 
@@ -132,7 +132,7 @@ Email: delegates@psmeinc.org.ph
 Website: psmeinc.org.ph";
 
         // Attach PDF with company name in filename
-        $attachment_filename = "73rd_NatCon_Invitation_{$clean_company_name}.pdf";
+        $attachment_filename = "74th_NatCon_Invitation_{$clean_company_name}.pdf";
         $mail->addAttachment($pdfFilePath, $attachment_filename);
 
         if ($mail->send()) {

@@ -1,26 +1,31 @@
 <?php
 require 'db.php'; // database connection
-require 'vendor/autoload.php'; // PHPMailer via Composer + phpdotenv
+require 'vendor/autoload.php';
+require 'gmail_api.php';
 require_once('vendor/tecnickcom/tcpdf/tcpdf.php'); // TCPDF direct include
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+require_once __DIR__ . '/helpers/tracking.php';
 
 // Load environment variables (safeLoad prevents fatal error if .env missing)
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->safeLoad(); // use safeLoad so script continues if .env is not present
 
-// Normalize SMTP env values and trim whitespace from password automatically
-$smtpHost = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
-$smtpPort = isset($_ENV['SMTP_PORT']) ? (int)$_ENV['SMTP_PORT'] : 587;
-$smtpUser = $_ENV['SMTP_USERNAME'] ?? 'ict@psmeinc.org.ph';
-$smtpPass = $_ENV['SMTP_PASSWORD'] ?? '';
-// Remove any whitespace (spaces/newlines/tabs) that might be present in the pasted password
-$smtpPass = preg_replace('/\s+/', '', $smtpPass);
-$smtpEnc  = strtolower($_ENV['SMTP_ENCRYPTION'] ?? 'tls');
-
-$mailFromAddress = $_ENV['MAIL_FROM_ADDRESS'] ?? 'delegates2@psmeinc.org.ph';
+$mailFromAddress = $_ENV['GOOGLE_SENDER_EMAIL'] ?? ($_ENV['MAIL_FROM_ADDRESS'] ?? 'delegates2@psmeinc.org.ph');
 $mailFromName    = $_ENV['MAIL_FROM_NAME'] ?? 'PSME Invitation Team';
+
+$eventDates = 'October 14-17, 2026';
+$eventVenue = 'SMX Convention Center, Pasay City';
+$eventLink = 'https://psmeinc.org.ph/#/psme/event-details/81';
+$eventFb = 'https://www.facebook.com/psmeinc';
+
+function findInvitationImage(array $candidates) {
+    foreach ($candidates as $candidate) {
+        $real = realpath($candidate);
+        if ($real && file_exists($real)) {
+            return $real;
+        }
+    }
+    return null;
+}
 
 // Get POST data & sanitize
 $email = $conn->real_escape_string($_POST['email']);
@@ -34,10 +39,26 @@ $event = $conn->real_escape_string($_POST['event']);
 $status = 'pending';
 
 // Insert into DB
-$sql = "INSERT INTO invitations (email, salutation, full_name, designation, company, address, event, status)
-VALUES ('$email', '$salutation', '$full_name', '$designation', '$company', '$address', '$event', '$status')";
+$stmtInsert = $conn->prepare(
+    "INSERT INTO invitations (email, salutation, full_name, designation, company, address, event, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+);
 
-if ($conn->query($sql) === TRUE) {
+if ($stmtInsert) {
+    $stmtInsert->bind_param(
+        'ssssssss',
+        $email,
+        $salutation,
+        $full_name,
+        $designation,
+        $company,
+        $address,
+        $event,
+        $status
+    );
+    $stmtInsert->execute();
+    $invitationId = $conn->insert_id;
+    $stmtInsert->close();
 
     // Generate PDF using TCPDF with long bond paper size
     $pdf = new TCPDF('P', 'mm', array(215.9, 330.2), true, 'UTF-8', false); // 8.5x13 inches
@@ -53,7 +74,10 @@ if ($conn->query($sql) === TRUE) {
     // -------------------------
     $pdf->AddPage();
 
-    $imgPath1 = realpath('invitation/73rd NatCon Invitation for Member w_meals_page-0001.jpg');
+    $imgPath1 = findInvitationImage([
+        'invitation/73rd NatCon Invitation for Member w_meals_page-0001.jpg',
+        'invitation/1.jpg'
+    ]);
     if (!$imgPath1) { die('Page 1 background image not found.'); }
 
     $pdf->Image($imgPath1, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
@@ -83,7 +107,10 @@ if ($conn->query($sql) === TRUE) {
     // -------------------------
     $pdf->AddPage();
 
-    $imgPath2 = realpath('invitation/73rd NatCon Invitation for Member w_meals_page-0002.jpg');
+    $imgPath2 = findInvitationImage([
+        'invitation/73rd NatCon Invitation for Member w_meals_page-0002.jpg',
+        'invitation/2.jpg'
+    ]);
     if (!$imgPath2) { die('Page 2 background image not found.'); }
 
     $pdf->Image($imgPath2, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
@@ -93,62 +120,35 @@ if ($conn->query($sql) === TRUE) {
     // -------------------------
     $pdfOutput = $pdf->Output('', 'S'); // return as string
 
-    // Save PDF to server temporarily with company name
-    $clean_company_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $company);
-    $pdfFilePath = __DIR__ . "/invitation_{$clean_company_name}.pdf";
-    file_put_contents($pdfFilePath, $pdfOutput);
-
     // -------------------------
-    // Send email with PHPMailer
+    // Send email with Gmail API (OAuth)
     // -------------------------
-    $mail = new PHPMailer(true);
-
-    // Configure SMTP using .env values (with trimmed password)
     try {
-        $mail->isSMTP();
-        $mail->Host = $smtpHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $smtpUser;
-        $mail->Password = $smtpPass;
+        $trackingToken = bin2hex(random_bytes(16));
+        $baseUrl = getAppUrl();
+        $trackUrl = buildOpenTrackingUrl($baseUrl, $trackingToken);
+        $eventLinkTracked = buildClickTrackingUrl($baseUrl, $trackingToken, $eventLink);
+        $eventFbTracked = buildClickTrackingUrl($baseUrl, $trackingToken, $eventFb);
 
-        if ($smtpEnc === 'tls' || $smtpEnc === 'starttls') {
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        } elseif ($smtpEnc === 'ssl' || $smtpEnc === 'smtps') {
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        } else {
-            // leave default or no encryption
-            $mail->SMTPSecure = '';
-        }
-
-        $mail->Port = $smtpPort;
-
-        $mail->setFrom($mailFromAddress, $mailFromName);
-        $mail->addAddress($email, $full_name);
-        if ($hr_email) {
-            $mail->addCC($hr_email);
-        }
-        $mail->Subject = '73rd PSME National Convention Official Invitation';
-        $mail->isHTML(true);
-
-        $mail->Body = "
+        $htmlBody = "
             <p>Good day <strong>$salutation $full_name</strong>,</p>
             <p>
-                We are pleased to attach your official invitation letter to the 73rd PSME National Convention, happening on <strong>October 15–18, 2025</strong> at the <strong>SMX Convention Center, Pasay City</strong>.<br>
+                We are pleased to attach your official invitation letter to the 74th PSME National Convention, happening on <strong>$eventDates</strong> at the <strong>$eventVenue</strong>.<br>
                 This event promises to be an exciting gathering of mechanical engineers, industry leaders, and professionals from across the country. We encourage you to take part in this milestone event and experience valuable learning, networking, and collaboration opportunities.
             </p>
             <p>
                 <strong>To confirm your attendance and secure your slot, please register as soon as possible:</strong><br>
-                <a href='https://psmeinc.org.ph/#/psme/event-details/16' target='_blank'>https://psmeinc.org.ph/#/psme/event-details/16</a>
+                <a href='$eventLinkTracked' target='_blank'>$eventLink</a>
             </p>
             <p>
                 For the latest updates, announcements, and event highlights, follow our official NatCon Facebook page:<br>
-                <a href='https://www.facebook.com/natconpsme' target='_blank'>https://www.facebook.com/natconpsme</a>
+                <a href='$eventFbTracked' target='_blank'>$eventFb</a>
             </p>
             <p>
                 If you need any assistance or require additional documents, please feel free to contact us at any time. Our team is here to support you.
             </p>
             <p>
-                Thank you for your interest, and we look forward to welcoming you at the 73rd PSME National Convention!
+                Thank you for your interest, and we look forward to welcoming you at the 74th PSME National Convention!
             </p>
             <p>Sincerely,<br>
                 <strong>Randy Flores</strong><br>
@@ -164,31 +164,56 @@ if ($conn->query($sql) === TRUE) {
                 <strong>Email:</strong> delegates@psmeinc.org.ph<br>
                 <strong>Website:</strong> <a href='https://psmeinc.org.ph'>psmeinc.org.ph</a>
             </p>
+            <img src='$trackUrl' width='1' height='1' alt='' style='display:none;'>
         ";
-        $attachment_filename = "73rd_NatCon_Invitation_{$clean_company_name}.pdf";
-        $mail->addAttachment($pdfFilePath, $attachment_filename);
+        $clean_company_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $company);
+        $attachment_filename = "74th_NatCon_Invitation_{$clean_company_name}.pdf";
+        $messageId = buildMessageId($mailFromAddress);
 
-        if ($mail->send()) {
-            $update_sql = "UPDATE invitations SET status='sent' WHERE email='$email'";
-            $conn->query($update_sql);
+        $payload = [
+            'from' => $mailFromName . ' <' . $mailFromAddress . '>',
+            'to' => $full_name !== '' ? ($full_name . ' <' . $email . '>') : $email,
+            'cc' => $hr_email ? $hr_email : '',
+            'subject' => '74th PSME National Convention Official Invitation',
+            'html' => $htmlBody,
+            'attachments' => [
+                [
+                    'filename' => $attachment_filename,
+                    'data' => $pdfOutput,
+                    'mime' => 'application/pdf'
+                ]
+            ],
+            'message_id' => $messageId
+        ];
 
-            echo "Invitation sent successfully with personalized PDF!";
-        } else {
-            echo "Message could not be sent. Error: {$mail->ErrorInfo}";
+        $sendResult = sendGmailMessage($payload);
+        $gmailMessageId = $sendResult['gmail_message_id'] ?? null;
+        $gmailThreadId = $sendResult['gmail_thread_id'] ?? null;
+
+        $stmtUpdate = $conn->prepare("UPDATE invitations SET status='sent' WHERE id=?");
+        if ($stmtUpdate) {
+            $stmtUpdate->bind_param('i', $invitationId);
+            $stmtUpdate->execute();
+            $stmtUpdate->close();
         }
 
+        $stmt = $conn->prepare(
+            "INSERT INTO email_messages (source_type, source_id, email, message_id, gmail_message_id, gmail_thread_id, tracking_token, tracking_id, status, sent_at, last_event_at)
+             VALUES ('individual', ?, ?, ?, ?, ?, ?, ?, 'SENT', NOW(), NOW())"
+        );
+        if ($stmt) {
+            $stmt->bind_param('issssss', $invitationId, $email, $messageId, $gmailMessageId, $gmailThreadId, $trackingToken, $trackingToken);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        echo "Invitation sent successfully with personalized PDF!";
     } catch (Exception $e) {
-        // PHPMailer exception message
-        echo "Message could not be sent. Mailer Error: {$mail->ErrorInfo}";
-    } finally {
-        // Delete temp PDF file
-        if (file_exists($pdfFilePath)) {
-            unlink($pdfFilePath);
-        }
+        echo "Message could not be sent. Error: {$e->getMessage()}";
     }
 
 } else {
-    echo "Error: " . $sql . "<br>" . $conn->error;
+    echo "Error: " . $conn->error;
 }
 
 // Debug

@@ -21,11 +21,101 @@ SET time_zone = "+00:00";
 -- Database: `natconinv`
 --
 
--- --------------------------------------------------------
-
---
 -- Table structure for table `companies`
 --
+
+-- --------------------------------------------------------
+-- Table structure for table `supervisor_invitations`
+-- --------------------------------------------------------
+
+CREATE TABLE `supervisor_invitations` (
+  `id` int(11) NOT NULL,
+  `supervisor_name` varchar(255) NOT NULL,
+  `company` varchar(255) NOT NULL,
+  `company_address` text DEFAULT NULL,
+  `designation` varchar(255) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `status` varchar(50) DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `supervisor_invitations`
+  ADD PRIMARY KEY (`id`);
+
+ALTER TABLE `supervisor_invitations`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+-- --------------------------------------------------------
+-- Table structure for table `invitation_batches`
+-- --------------------------------------------------------
+
+CREATE TABLE `invitation_batches` (
+  `id` int(11) NOT NULL,
+  `filename` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `invitation_batches`
+  ADD PRIMARY KEY (`id`);
+
+ALTER TABLE `invitation_batches`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+-- --------------------------------------------------------
+-- Table structure for table `invitation_queue`
+-- --------------------------------------------------------
+
+CREATE TABLE `invitation_queue` (
+  `id` int(11) NOT NULL,
+  `batch_id` int(11) DEFAULT NULL,
+  `type` varchar(20) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `salutation` varchar(50) DEFAULT NULL,
+  `full_name` varchar(255) DEFAULT NULL,
+  `designation` varchar(255) DEFAULT NULL,
+  `company` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `hr_email` varchar(255) DEFAULT NULL,
+  `tracking_token` varchar(64) DEFAULT NULL,
+  `status` varchar(20) DEFAULT 'queued',
+  `error_message` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `sent_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `invitation_queue`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_invitation_queue_batch` (`batch_id`);
+
+ALTER TABLE `invitation_queue`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+-- --------------------------------------------------------
+-- Table structure for table `email_messages`
+-- --------------------------------------------------------
+
+CREATE TABLE `email_messages` (
+  `id` int(11) NOT NULL,
+  `source_type` varchar(30) NOT NULL,
+  `source_id` int(11) DEFAULT NULL,
+  `email` varchar(255) NOT NULL,
+  `message_id` varchar(255) DEFAULT NULL,
+  `tracking_token` varchar(64) DEFAULT NULL,
+  `status` varchar(20) DEFAULT 'sent',
+  `sent_at` timestamp NULL DEFAULT NULL,
+  `opened_at` timestamp NULL DEFAULT NULL,
+  `replied_at` timestamp NULL DEFAULT NULL,
+  `last_event_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `email_messages`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_email_messages_email` (`email`),
+  ADD KEY `idx_email_messages_token` (`tracking_token`);
+
+ALTER TABLE `email_messages`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 CREATE TABLE `companies` (
   `company_id` int(11) NOT NULL,
