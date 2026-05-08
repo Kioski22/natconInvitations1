@@ -7,7 +7,26 @@ use Dotenv\Dotenv;
 $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->safeLoad();
 
-$imapEnabled = strtolower($_ENV['IMAP_ENABLED'] ?? 'false') === 'true';
+function envValue(string $key, string $default = ''): string {
+    $env = $_ENV[$key] ?? null;
+    if (is_string($env) && $env !== '') {
+        return $env;
+    }
+
+    $server = $_SERVER[$key] ?? null;
+    if (is_string($server) && $server !== '') {
+        return $server;
+    }
+
+    $value = getenv($key);
+    if (is_string($value) && $value !== '') {
+        return $value;
+    }
+
+    return $default;
+}
+
+$imapEnabled = strtolower(envValue('IMAP_ENABLED', 'false')) === 'true';
 if (!$imapEnabled) {
     echo "IMAP sync disabled. Set IMAP_ENABLED=true to enable.\n";
     $conn->close();
@@ -20,12 +39,12 @@ if (!function_exists('imap_open')) {
     exit;
 }
 
-$imapHost = $_ENV['IMAP_HOST'] ?? '';
-$imapPort = $_ENV['IMAP_PORT'] ?? '993';
-$imapUser = $_ENV['IMAP_USERNAME'] ?? '';
-$imapPass = $_ENV['IMAP_PASSWORD'] ?? '';
-$imapBox = $_ENV['IMAP_MAILBOX'] ?? 'INBOX';
-$imapEnc = strtolower($_ENV['IMAP_ENCRYPTION'] ?? 'ssl');
+$imapHost = envValue('IMAP_HOST');
+$imapPort = envValue('IMAP_PORT', '993');
+$imapUser = envValue('IMAP_USERNAME');
+$imapPass = envValue('IMAP_PASSWORD');
+$imapBox = envValue('IMAP_MAILBOX', 'INBOX');
+$imapEnc = strtolower(envValue('IMAP_ENCRYPTION', 'ssl'));
 
 if ($imapHost === '' || $imapUser === '' || $imapPass === '') {
     echo "Missing IMAP configuration.\n";

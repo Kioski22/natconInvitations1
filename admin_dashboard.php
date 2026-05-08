@@ -1367,7 +1367,7 @@ const syncRepliesStatus = document.getElementById('syncRepliesStatus');
 if (syncRepliesBtn) {
     syncRepliesBtn.addEventListener('click', async function() {
         if (syncRepliesStatus) {
-            syncRepliesStatus.textContent = 'Syncing opens and replies...';
+            syncRepliesStatus.textContent = 'Syncing tracking data...';
         }
 
         try {
@@ -1377,10 +1377,14 @@ if (syncRepliesBtn) {
             const replyResponse = await fetch('sync_replies.php?ts=' + Date.now(), { cache: 'no-store' });
             const replyText = await replyResponse.text();
 
+            const bounceResponse = await fetch('sync_bounces.php?ts=' + Date.now(), { cache: 'no-store' });
+            const bounceText = await bounceResponse.text();
+
             if (syncRepliesStatus) {
                 syncRepliesStatus.textContent =
                     (openText.trim() || 'Open sync complete.') + ' | ' +
-                    (replyText.trim() || 'Reply sync complete.');
+                    (replyText.trim() || 'Reply sync complete.') + ' | ' +
+                    (bounceText.trim() || 'Bounce sync complete.');
             }
         } catch (err) {
             if (syncRepliesStatus) {

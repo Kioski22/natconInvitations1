@@ -1,29 +1,14 @@
 <?php
-require 'vendor/autoload.php';
 require 'gmail_api.php';
 
-use Dotenv\Dotenv;
+$tokenPath = resolveTokenPath($_ENV['GMAIL_TOKEN_PATH'] ?? 'storage/gmail_token.json');
 
-$dotenv = Dotenv::createImmutable(__DIR__);
-$dotenv->safeLoad();
-
-$clientId = $_ENV['GOOGLE_CLIENT_ID'] ?? '';
-$clientSecret = $_ENV['GOOGLE_CLIENT_SECRET'] ?? '';
-$redirectUri = $_ENV['GOOGLE_REDIRECT_URI'] ?? '';
-$tokenPath = $_ENV['GMAIL_TOKEN_PATH'] ?? 'storage/gmail_token.json';
-
-if ($clientId === '' || $clientSecret === '' || $redirectUri === '') {
-    echo 'Missing Gmail OAuth configuration.';
+try {
+    $client = buildOauthClient();
+} catch (Exception $e) {
+    echo $e->getMessage();
     exit;
 }
-
-$client = new Google\Client();
-$client->setClientId($clientId);
-$client->setClientSecret($clientSecret);
-$client->setRedirectUri($redirectUri);
-$client->setAccessType('offline');
-$client->setPrompt('consent');
-$client->setScopes([Google\Service\Gmail::GMAIL_SEND]);
 
 if (!isset($_GET['code'])) {
     echo 'Authorization code missing.';

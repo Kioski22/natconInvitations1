@@ -5,6 +5,25 @@ require_once __DIR__ . '/../helpers/log.php';
 
 use Google\Service\Gmail;
 
+function envValue(string $key, string $default = ''): string {
+    $env = $_ENV[$key] ?? null;
+    if (is_string($env) && $env !== '') {
+        return $env;
+    }
+
+    $server = $_SERVER[$key] ?? null;
+    if (is_string($server) && $server !== '') {
+        return $server;
+    }
+
+    $value = getenv($key);
+    if (is_string($value) && $value !== '') {
+        return $value;
+    }
+
+    return $default;
+}
+
 $lockFile = __DIR__ . '/../logs/cron_check_replies.lock';
 $lockHandle = fopen($lockFile, 'c');
 if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
@@ -13,7 +32,7 @@ if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
 }
 
 $limit = (int)($_ENV['REPLY_CHECK_LIMIT'] ?? 50);
-$senderEmail = strtolower($_ENV['GOOGLE_SENDER_EMAIL'] ?? '');
+$senderEmail = strtolower(envValue('GOOGLE_SENDER_EMAIL'));
 
 if ($senderEmail === '') {
     echo "Missing GOOGLE_SENDER_EMAIL.\n";
@@ -54,6 +73,7 @@ function getHeaderValue(array $headers, string $name): string {
 }
 
 $updated = 0;
+$errors = [];
 foreach ($rows as $row) {
     $messageId = (int)$row['id'];
     $threadId = $row['gmail_thread_id'];
@@ -126,7 +146,9 @@ foreach ($rows as $row) {
             }
         }
     } catch (Exception $e) {
-        appLog('error', 'Reply check failed.', ['message_id' => $messageId, 'error' => $e->getMessage()]);
+        $errorMessage = $e->getMessage();
+        $errors[] = $errorMessage;
+        appLog('error', 'Reply check failed.', ['message_id' => $messageId, 'error' => $errorMessage]);
     }
 }
 
@@ -135,3 +157,11 @@ flock($lockHandle, LOCK_UN);
 fclose($lockHandle);
 
 echo "Reply sync complete. Updated: $updated\n";
+if (!empty($errors)) {
+    $errorText = implode(' ', array_unique($errors));
+    if (stripos($errorText, 'insufficient authentication scopes') !== false || stripos($errorText, 'insufficient permission') !== false) {
+        echo "Reply sync warning: Gmail token lacks mailbox read scope. Re-authorize via gmail_oauth_start.php, then try again.\n";
+    } else {
+        echo "Reply sync warning: " . substr($errorText, 0, 300) . "\n";
+    }
+}

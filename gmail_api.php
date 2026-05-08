@@ -9,6 +9,25 @@ use Google\Service\Gmail\Message;
 $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->safeLoad();
 
+function gmailEnv(string $key, string $default = ''): string {
+    $env = $_ENV[$key] ?? null;
+    if (is_string($env) && $env !== '') {
+        return $env;
+    }
+
+    $server = $_SERVER[$key] ?? null;
+    if (is_string($server) && $server !== '') {
+        return $server;
+    }
+
+    $value = getenv($key);
+    if (is_string($value) && $value !== '') {
+        return $value;
+    }
+
+    return $default;
+}
+
 function resolveTokenPath(string $tokenPath): string {
     if ($tokenPath === '') {
         return $tokenPath;
@@ -22,10 +41,10 @@ function resolveTokenPath(string $tokenPath): string {
 }
 
 function buildOauthClient(): Client {
-    $clientId = $_ENV['GOOGLE_CLIENT_ID'] ?? '';
-    $clientSecret = $_ENV['GOOGLE_CLIENT_SECRET'] ?? '';
-    $redirectUri = $_ENV['GOOGLE_REDIRECT_URI'] ?? '';
-    $tokenPath = resolveTokenPath($_ENV['GMAIL_TOKEN_PATH'] ?? 'storage/gmail_token.json');
+    $clientId = gmailEnv('GOOGLE_CLIENT_ID');
+    $clientSecret = gmailEnv('GOOGLE_CLIENT_SECRET');
+    $redirectUri = gmailEnv('GOOGLE_REDIRECT_URI');
+    $tokenPath = resolveTokenPath(gmailEnv('GMAIL_TOKEN_PATH', 'storage/gmail_token.json'));
 
     if ($clientId === '' || $clientSecret === '' || $redirectUri === '') {
         throw new Exception('Missing Gmail OAuth configuration.');
@@ -37,13 +56,18 @@ function buildOauthClient(): Client {
     $client->setRedirectUri($redirectUri);
     $client->setAccessType('offline');
     $client->setPrompt('consent');
-    $client->setScopes([Gmail::GMAIL_SEND, Gmail::GMAIL_READONLY]);
+    // Request send + mailbox read scopes so reply tracking can inspect threads.
+    $client->setScopes([
+        Gmail::GMAIL_SEND,
+        Gmail::GMAIL_READONLY,
+        Gmail::GMAIL_MODIFY
+    ]);
 
     return $client;
 }
 
 function getGmailClient(): Client {
-    $tokenPath = resolveTokenPath($_ENV['GMAIL_TOKEN_PATH'] ?? 'storage/gmail_token.json');
+    $tokenPath = resolveTokenPath(gmailEnv('GMAIL_TOKEN_PATH', 'storage/gmail_token.json'));
     $client = buildOauthClient();
 
     if (!file_exists($tokenPath)) {

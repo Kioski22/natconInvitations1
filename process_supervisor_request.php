@@ -60,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         // Overlay text
-        $pdf->SetFont('times', '', 12);
+        $pdf->SetFont('helvetica', '', 10);
 
         $pdf->SetXY(55, 75);
         $pdf->Cell(0, 10, $supervisor_name, 0, 1, 'L');
@@ -74,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $pdf->SetXY(55, 89);
         $pdf->MultiCell(150, 10, $company_address, 0, 'L');
         
-        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->SetFont('helvetica', 'B', 10);
         $pdf->SetXY(65, 118.5);
         $pdf->Cell(0, 10, $supervisor_name . ',', 0, 1, 'L');
 
