@@ -21,41 +21,53 @@ function buildIndividualPdf(array $data): string {
 
     $pdf->AddPage();
     $img1 = findInvitationImage([
-        'invitation/73rd NatCon Invitation for Member w_meals_page-0001.jpg',
-        'invitation/1.jpg'
+        'invitation/74th NatCon Invitation for Member w_meals_page-0001.png',
+        'invitation/1.png'
     ]);
     if (!$img1) {
         throw new Exception('Page 1 background image not found.');
     }
     $pdf->Image($img1, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
 
-    $pdf->SetFont('helvetica', '', 12);
-    $pdf->SetTextColor(0, 0, 0);
-    $pdf->SetXY(55, 90.5);
-    $pdf->Write(0, ($data['salutation'] ?? '') . ' ' . ($data['full_name'] ?? ''));
-    $pdf->SetXY(55, 95.5);
-    $pdf->Write(0, $data['designation'] ?? '');
-    $pdf->SetXY(55, 100);
-    $pdf->Write(0, $data['company'] ?? '');
-    $pdf->SetXY(55, 105);
-    $pdf->MultiCell(100, 0, $data['address'] ?? '', 0, 'L', false, 1);
+    // $pdf->SetFont('helvetica', '', 12);
+    // $pdf->SetTextColor(0, 0, 0);
+    // $pdf->SetXY(55, 90.5);
+    // $pdf->Write(0, ($data['salutation'] ?? '') . ' ' . ($data['full_name'] ?? ''));
+    // $pdf->SetXY(55, 95.5);
+    // $pdf->Write(0, $data['designation'] ?? '');
+    // $pdf->SetXY(55, 100);
+    // $pdf->Write(0, $data['company'] ?? '');
+    // $pdf->SetXY(55, 105);
+    // $pdf->MultiCell(100, 0, $data['address'] ?? '', 0, 'L', false, 1);
 
-    $pdf->SetFont('helvetica', 'B', 12);
-    $pdf->SetXY(62.5, 120);
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->SetXY(63.8, 81.8);
     $pdf->Write(0, ' ' . ($data['salutation'] ?? '') . ' ' . ($data['full_name'] ?? '') . ',');
 
     $pdf->AddPage();
     $img2 = findInvitationImage([
-        'invitation/73rd NatCon Invitation for Member w_meals_page-0002.jpg',
-        'invitation/2.jpg'
+        'invitation/74th NatCon Invitation for Member w_meals_page-0002.png',
+        'invitation/2.png'
     ]);
     if (!$img2) {
         throw new Exception('Page 2 background image not found.');
     }
     $pdf->Image($img2, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
 
+     $pdf->AddPage();
+    $img3 = findInvitationImage([
+        'invitation/74th NatCon Invitation for Member w_meals_page-0003.png',
+        'invitation/3.png'
+    ]);
+    if (!$img3) {
+        throw new Exception('Page 3 background image not found.');
+    }
+    $pdf->Image($img3, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
+
     return $pdf->Output('', 'S');
 }
+
+
 
 function buildCompanyPdf(array $data): string {
     $pdf = new TCPDF('P', 'mm', [216, 330], true, 'UTF-8', false);

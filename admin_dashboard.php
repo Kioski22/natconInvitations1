@@ -7,11 +7,6 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 require 'db.php';
 require_once __DIR__ . '/helpers/csrf.php';
 
-// Pagination setup for invitations
-$limit = 7; // records per page
-$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
-
 // Tracking totals
 $totals = [
     'total_sent' => 0,
@@ -66,7 +61,7 @@ $total_soa = $row_soa['total_soa'];
 
 // Bulk invitation queue
 $bulkInvites = [];
-$result_bulk = $conn->query("SELECT * FROM invitation_queue ORDER BY created_at DESC LIMIT 200");
+$result_bulk = $conn->query("SELECT * FROM invitation_queue ORDER BY created_at DESC");
 if ($result_bulk && $result_bulk->num_rows > 0) {
     while ($row = $result_bulk->fetch_assoc()) {
         $bulkInvites[] = $row;
@@ -75,7 +70,7 @@ if ($result_bulk && $result_bulk->num_rows > 0) {
 
 // Email tracking
 $trackingRows = [];
-$result_tracking = $conn->query("SELECT * FROM email_messages ORDER BY created_at DESC LIMIT 200");
+$result_tracking = $conn->query("SELECT * FROM email_messages ORDER BY created_at DESC");
 if ($result_tracking && $result_tracking->num_rows > 0) {
     while ($row = $result_tracking->fetch_assoc()) {
         $trackingRows[] = $row;
@@ -89,6 +84,8 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
     <title>PSME Admin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -358,6 +355,35 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
             border-radius: var(--border-radius);
             overflow: hidden;
         }
+
+        .dataTables_wrapper .dt-buttons {
+            margin-bottom: 12px;
+        }
+
+        .dataTables_wrapper .dataTables_filter {
+            margin-bottom: 12px;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            padding: 8px 12px;
+        }
+
+        .dataTables_wrapper .dataTables_length select {
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            padding: 6px 32px 6px 12px;
+        }
+
+        .dataTables_wrapper .dataTables_info,
+        .dataTables_wrapper .dataTables_paginate {
+            margin-top: 12px;
+        }
+
+        .dt-button.btn {
+            margin-right: 8px;
+        }
         
         .logout-link {
             margin-top: auto;
@@ -495,7 +521,7 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
     <div id="individualTab" class="tab-content" style="display:none;">
         <h4 class="section-title">Individual Invitations</h4>
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover admin-data-table" id="individualTable" data-export-type="individual">
                 <thead>
                     <tr>
                         <th>Event</th><th>Company</th><th>Email</th><th>Name</th><th>Designation</th><th>Address</th><th>Status</th>
@@ -503,13 +529,7 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
                 </thead>
             <tbody>
             <?php
-            // Get total records for pagination
-            $sql_count = "SELECT COUNT(*) as total FROM invitations";
-            $result_count = $conn->query($sql_count);
-            $total_records = $result_count->fetch_assoc()['total'];
-            $total_pages = ceil($total_records / $limit);
-
-            $sql = "SELECT * FROM invitations ORDER BY event, company LIMIT $limit OFFSET $offset";
+            $sql = "SELECT * FROM invitations ORDER BY event, company";
             $result = $conn->query($sql);
             if ($result->num_rows > 0):
                 while($row = $result->fetch_assoc()):
@@ -529,81 +549,13 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
             </tbody>
             </table>
         </div>
-        <!-- Pagination controls -->
-        <div class="d-flex justify-content-between align-items-center mt-4">
-            <div class="text-muted">
-                Showing <?= ($offset + 1) ?> to <?= min($offset + $limit, $total_records) ?> of <?= $total_records ?> entries
-            </div>
-            <nav aria-label="Individual pagination">
-                <ul class="pagination pagination-sm mb-0">
-                    <?php if ($page > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1" onclick="loadIndividualPage(1); return false;" aria-label="First">
-                                <i class="bi bi-chevron-double-left"></i>
-                            </a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $page-1 ?>" onclick="loadIndividualPage(<?= $page-1 ?>); return false;" aria-label="Previous">
-                                <i class="bi bi-chevron-left"></i>
-                            </a>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <?php
-                    // Show page numbers with ellipsis for large page counts
-                    $start_page = max(1, $page - 2);
-                    $end_page = min($total_pages, $page + 2);
-                    
-                    if ($start_page > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1" onclick="loadIndividualPage(1); return false;">1</a>
-                        </li>
-                        <?php if ($start_page > 2): ?>
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                    
-                    <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
-                        <li class="page-item <?= $i == $page ? 'active' : '' ?>">
-                            <a class="page-link" href="?page=<?= $i ?>" onclick="loadIndividualPage(<?= $i ?>); return false;"><?= $i ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    
-                    <?php if ($end_page < $total_pages): ?>
-                        <?php if ($end_page < $total_pages - 1): ?>
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        <?php endif; ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $total_pages ?>" onclick="loadIndividualPage(<?= $total_pages ?>); return false;"><?= $total_pages ?></a>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <?php if ($page < $total_pages): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $page+1 ?>" onclick="loadIndividualPage(<?= $page+1 ?>); return false;" aria-label="Next">
-                                <i class="bi bi-chevron-right"></i>
-                            </a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $total_pages ?>" onclick="loadIndividualPage(<?= $total_pages ?>); return false;" aria-label="Last">
-                                <i class="bi bi-chevron-double-right"></i>
-                            </a>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </nav>
-        </div>
     </div>
 
     <!-- Company Tab -->
     <div id="companyTab" class="tab-content" style="display:none;">
         <h4 class="section-title">Company Summary</h4>
         <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="companyTable" data-export-type="company">
                 <thead class="table-primary">
                     <tr>
                         <th>ID</th>
@@ -622,8 +574,6 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
                                 <td><?= htmlspecialchars($comp['excel_filename']) ?></td>
                             </tr>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="4" class="text-center text-muted">No companies found.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -672,7 +622,7 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
         <div id="bulkInviteResult" class="mt-3"></div>
 
         <div class="table-responsive mt-4">
-            <table class="table table-bordered table-hover align-middle">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="bulkTable" data-export-type="bulk">
                 <thead class="table-primary">
                     <tr>
                         <th>ID</th>
@@ -699,8 +649,6 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
                                 <td><?= htmlspecialchars($invite['error_message']) ?></td>
                             </tr>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="8" class="text-center text-muted">No bulk invitations yet.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -717,7 +665,7 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
             <span id="syncRepliesStatus" class="small text-muted ms-2"></span>
         </div>
         <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="trackingTable" data-export-type="tracking">
                 <thead class="table-primary">
                     <tr>
                         <th>ID</th>
@@ -748,8 +696,6 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
                                 <td><?= htmlspecialchars($row['last_event_at']) ?></td>
                             </tr>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="10" class="text-center text-muted">No tracking records yet.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -833,7 +779,7 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
         </div>
 
         <!-- Sample table of released SOAs -->
-        <table class="table table-bordered">
+        <table class="table table-bordered admin-data-table" id="soaReleasedTable" data-export-type="soa_released">
             <thead>
                 <tr>
                     <th>SOA Number</th>
@@ -851,9 +797,7 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
                     <td><?= htmlspecialchars($row['soa_number']) ?></td>
                     <td><?= htmlspecialchars($row['created_at']) ?></td>
                 </tr>
-            <?php endwhile; else: ?>
-                <tr><td colspan="2" class="text-center">No SOA released records found.</td></tr>
-            <?php endif; ?>
+            <?php endwhile; endif; ?>
             </tbody>
         </table>
     </div>
@@ -861,7 +805,116 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 <script>
+function getExportDateStamp() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+}
+
+function normalizeExportSegment(value, fallbackValue) {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_-]/g, '');
+
+    return normalized || fallbackValue;
+}
+
+function getAdminTableInstance(selector) {
+    if (typeof $.fn.DataTable !== 'function' || !$(selector).length || !$.fn.dataTable.isDataTable(selector)) {
+        return null;
+    }
+
+    return $(selector).DataTable();
+}
+
+function refreshVisibleAdminTables() {
+    if (typeof $.fn.DataTable !== 'function') {
+        return;
+    }
+
+    $('.admin-data-table:visible').each(function() {
+        if ($.fn.dataTable.isDataTable(this)) {
+            $(this).DataTable().columns.adjust();
+        }
+    });
+}
+
+function setTableRows(selector, rows, emptyRowHtml) {
+    const tableInstance = getAdminTableInstance(selector);
+    const tbody = document.querySelector(selector + ' tbody');
+
+    if (!tbody) {
+        return;
+    }
+
+    if (tableInstance) {
+        tableInstance.clear();
+        if (rows.length > 0) {
+            tableInstance.rows.add(rows).draw();
+        } else {
+            tableInstance.draw();
+            tbody.innerHTML = emptyRowHtml;
+        }
+        tableInstance.columns.adjust();
+        return;
+    }
+
+    tbody.innerHTML = rows.length > 0 ? rows.join('') : emptyRowHtml;
+}
+
+function initializeAdminDataTables() {
+    if (typeof $.fn.DataTable !== 'function') {
+        return;
+    }
+
+    $('.admin-data-table').each(function() {
+        const table = $(this);
+        if ($.fn.dataTable.isDataTable(this)) {
+            return;
+        }
+
+        const exportType = normalizeExportSegment(table.data('export-type'), 'table');
+
+        table.DataTable({
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+            order: [],
+            language: {
+                emptyTable: 'No records found.'
+            },
+            dom: "<'row align-items-center mb-3'<'col-md-6'B><'col-md-6'f>>" +
+                "<'row'<'col-12'tr>>" +
+                "<'row align-items-center mt-3'<'col-md-5'i><'col-md-7'p>>",
+            buttons: [{
+                extend: 'excelHtml5',
+                text: '<i class="bi bi-file-earmark-excel me-1"></i>Export Excel',
+                className: 'btn btn-success btn-sm',
+                filename: function() {
+                    const instance = table.DataTable();
+                    const filterText = normalizeExportSegment(instance.search(), 'all');
+                    return exportType + '_' + getExportDateStamp() + '_' + filterText;
+                },
+                title: null,
+                exportOptions: {
+                    search: 'applied',
+                    order: 'applied'
+                }
+            }]
+        });
+    });
+}
+
 function showTab(tab) {
     // Hide all tabs first
     const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'bulkTab', 'trackingTab', 'soaGeneratorTab', 'soaReleasedTab'];
@@ -889,6 +942,7 @@ function showTab(tab) {
     });
     
     console.log('Switched to tab:', tab);
+    refreshVisibleAdminTables();
 }
 
 $('#companySelect').on('change', function(){
@@ -992,19 +1046,8 @@ $('#clearAutoBtn').on('click', function() {
     }
 });
 
-// Load individual page with AJAX
-function loadIndividualPage(page) {
-    // Just update the URL and reload to get new data
-    const url = new URL(window.location);
-    url.searchParams.set('page', page);
-    window.location.href = url.toString();
-}
-
-// Ensure correct tab is shown on page reload with pagination
 document.addEventListener('DOMContentLoaded', function() {
-    if (window.location.search.includes('page=')) {
-        showTab('individual');
-    }
+    initializeAdminDataTables();
 });
 
 const bulkForm = document.getElementById('bulkInviteForm');
@@ -1324,8 +1367,7 @@ function escapeHtml(value) {
 }
 
 async function refreshTrackingTable() {
-    const tbody = document.getElementById('trackingTableBody');
-    if (!tbody) {
+    if (!document.getElementById('trackingTableBody')) {
         return;
     }
 
@@ -1336,14 +1378,8 @@ async function refreshTrackingTable() {
             return;
         }
 
-        if (data.rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No tracking records yet.</td></tr>';
-            return;
-        }
-
-        let html = '';
-        data.rows.forEach(row => {
-            html += '<tr>' +
+        const rows = data.rows.map(row => {
+            return '<tr>' +
                 '<td>' + escapeHtml(row.id) + '</td>' +
                 '<td>' + escapeHtml(row.source_type) + '</td>' +
                 '<td>' + escapeHtml(row.email) + '</td>' +
@@ -1356,7 +1392,12 @@ async function refreshTrackingTable() {
                 '<td>' + escapeHtml(row.last_event_at) + '</td>' +
             '</tr>';
         });
-        tbody.innerHTML = html;
+
+        setTableRows(
+            '#trackingTable',
+            rows,
+            '<tr><td colspan="10" class="text-center text-muted">No tracking records yet.</td></tr>'
+        );
     } catch (err) {
         // Ignore transient polling errors.
     }

@@ -7,9 +7,9 @@ require 'gmail_api.php';
 require_once('vendor/tecnickcom/tcpdf/tcpdf.php'); // TCPDF
 require_once __DIR__ . '/helpers/tracking.php';
 
-// Load environment variables
+// Load environment variables without failing if .env is unavailable in production.
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+$dotenv->safeLoad();
 
 $eventDates = 'October 14-17, 2026';
 $eventVenue = 'SMX Convention Center, Pasay City';
@@ -51,7 +51,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Page 1 with background
         $pdf->AddPage();
         $bg1 = findInvitationImage([
-            __DIR__ . '/invitation/73rd-NatCon-Invitation-for-FOR-LGU-final_page-0001.jpg'
+            __DIR__ . '/invitation/74th-NatCon-Invitation-for-FOR-LGU-final_page-0001.png'
         ]);
         if ($bg1) {
             $pdf->Image($bg1, 0, 0, 216, 330);
@@ -60,33 +60,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         // Overlay text
-        $pdf->SetFont('helvetica', '', 10);
+        $pdf->SetFont('helvetica', 'B', 10);
 
-        $pdf->SetXY(55, 75);
+        $pdf->SetXY(65, 86.5);
         $pdf->Cell(0, 10, $supervisor_name, 0, 1, 'L');
 
-        $pdf->SetXY(55, 79);
-        $pdf->Cell(0, 10, $designation, 0, 1, 'L');
+        // $pdf->SetXY(55, 79);
+        // $pdf->Cell(0, 10, $designation, 0, 1, 'L');
 
-        $pdf->SetXY(55, 83);
-        $pdf->Cell(0, 10, $company, 0, 1, 'L');
+        // $pdf->SetXY(55, 83);
+        // $pdf->Cell(0, 10, $company, 0, 1, 'L');
 
-        $pdf->SetXY(55, 89);
-        $pdf->MultiCell(150, 10, $company_address, 0, 'L');
+        // $pdf->SetXY(55, 89);
+        // $pdf->MultiCell(150, 10, $company_address, 0, 'L');
         
-        $pdf->SetFont('helvetica', 'B', 10);
-        $pdf->SetXY(65, 118.5);
-        $pdf->Cell(0, 10, $supervisor_name . ',', 0, 1, 'L');
+        // $pdf->SetFont('helvetica', 'B', 10);
+        // $pdf->SetXY(65, 118.5);
+        // $pdf->Cell(0, 10, $supervisor_name . ',', 0, 1, 'L');
 
         // Page 2 with background
         $pdf->AddPage();
         $bg2 = findInvitationImage([
-            __DIR__ . '/invitation/73rd-NatCon-Invitation-for-FOR-LGU-final_page-0002.jpg'
+            __DIR__ . '/invitation/74th-NatCon-Invitation-for-FOR-LGU-page-0002.png'
         ]);
         if ($bg2) {
             $pdf->Image($bg2, 0, 0, 216, 330);
         } else {
             die('Background image 2 not found.');
+        }
+
+
+        // Page 3 with background
+        $pdf->AddPage();
+        $bg3 = findInvitationImage([
+            __DIR__ . '/invitation/74th-NatCon-Invitation-for-FOR-LGU-final_page-0003.png',
+            __DIR__ . '/invitation/74th-NatCon-Invitation-for-FOR-LGU-page-0003.png'
+        ]);
+        if ($bg3) {
+            $pdf->Image($bg3, 0, 0, 216, 330);
+        } else {
+            die('Background image 3 not found.');
         }
 
         // Output PDF to string

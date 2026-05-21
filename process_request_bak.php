@@ -34,7 +34,7 @@ if ($conn->query($sql) === TRUE) {
     // -------------------------
     $pdf->AddPage();
 
-    $imgPath1 = realpath('invitation/1.jpg');
+    $imgPath1 = realpath('invitation/1.png');
     if (!$imgPath1) { die('Page 1 background image not found.'); }
 
     $pdf->Image($imgPath1, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
@@ -64,10 +64,21 @@ if ($conn->query($sql) === TRUE) {
     // -------------------------
     $pdf->AddPage();
 
-    $imgPath2 = realpath('invitation/2.jpg');
+    $imgPath2 = realpath('invitation/2.png');
     if (!$imgPath2) { die('Page 2 background image not found.'); }
 
     $pdf->Image($imgPath2, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
+
+
+    // -------------------------
+    // Page 3
+    // -------------------------
+    $pdf->AddPage();
+
+    $imgPath3 = realpath('invitation/3.png');
+    if (!$imgPath3) { die('Page 3 background image not found.'); }
+
+    $pdf->Image($imgPath3, -1, -1, 218, 333, '', '', '', true, 300, '', false, false, 0, true);
 
     // -------------------------
     // Output PDF to string
