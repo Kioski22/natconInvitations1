@@ -107,40 +107,218 @@ foreach ($rows as $row) {
             $subject = 'Official Invitation to the 74th PSME National Convention';
             $attachmentName = '74th_NatCon_Company_Invitation.pdf';
             $htmlBody = "
-                <p>Dear <strong>{$payload['full_name']}</strong>,</p>
-                <p>We are pleased to invite you and your company, <strong>{$payload['company']}</strong>, to the upcoming
-                <strong>74th PSME National Convention</strong> on <strong>$eventDates</strong> at <strong>$eventVenue</strong>.</p>
-                <p>
-                    Registration link: <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventLink) . "' target='_blank'>$eventLink</a><br>
-                    Official Facebook page: <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventFb) . "' target='_blank'>$eventFb</a>
+        <div style='background:#e8eaf0; padding:32px 16px; font-family:Arial,Helvetica,sans-serif;'>
+        <div style='max-width:620px; margin:0 auto; background:#ffffff; border-radius:4px; overflow:hidden; box-shadow:0 2px 16px rgba(0,0,0,0.10);'>
+
+            <!-- Header -->
+            <div style='background:#004085; padding:36px 40px 28px;'>
+            <div style='color:#FFD700; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;'>
+                Philippine Society of Mechanical Engineers, Inc.
+            </div>
+            <div style='color:#ffffff; font-size:26px; font-weight:700; line-height:1.2; font-family:Georgia,serif; margin-bottom:4px;'>
+                74th PSME National Convention
+            </div>
+            <div style='color:rgba(255,255,255,0.75); font-size:13px;'>Official Invitation</div>
+            <div style='height:5px; background:#FFD700; margin-top:20px; margin-left:-40px; margin-right:-40px;'></div>
+            </div>
+
+            <!-- Event Details Banner -->
+            <div style='background:#003268; display:table; width:100%; box-sizing:border-box;'>
+            <div style='display:table-cell; padding:16px 24px; border-right:1px solid rgba(255,255,255,0.1); width:50%;'>
+                <div style='font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#FFD700; margin-bottom:4px;'>Date</div>
+                <div style='font-size:13px; color:#ffffff; line-height:1.4;'>$eventDates</div>
+            </div>
+            <div style='display:table-cell; padding:16px 24px; width:50%;'>
+                <div style='font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#FFD700; margin-bottom:4px;'>Venue</div>
+                <div style='font-size:13px; color:#ffffff; line-height:1.4;'>$eventVenue</div>
+            </div>
+            </div>
+
+            <!-- Body -->
+            <div style='padding:32px 40px; color:#444444;'>
+
+            <p style='font-family:Georgia,serif; font-size:17px; color:#004085; margin:0 0 20px;'>
+                Good day, <strong>{$payload['salutation']} {$payload['full_name']}</strong>,
+            </p>
+
+            <p style='font-size:14px; line-height:1.75; margin:0 0 16px;'>
+                We are pleased to attach your official invitation letter to the <strong>74th PSME National Convention</strong>.
+                This event promises to be an exciting gathering of mechanical engineers, industry leaders, and professionals
+                from across the country. We encourage you to take part in this milestone event and experience valuable
+                learning, networking, and collaboration opportunities.
+            </p>
+
+            <!-- CTA Block -->
+            <div style='background:#f0f5ff; border-left:4px solid #004085; border-radius:0 6px 6px 0; padding:16px 20px; margin:24px 0;'>
+                <div style='font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#004085; margin-bottom:8px;'>
+                Confirm Your Attendance
+                </div>
+                <p style='font-size:13px; line-height:1.6; margin:0 0 12px; color:#444;'>
+                Secure your slot as soon as possible &mdash; spaces are limited.
                 </p>
-                <p>Please see the attached official invitation letter.</p>
-                <p>Thank you,<br><strong>PSME National Office</strong></p>
-                <img src='" . buildOpenTrackingUrl($baseUrl, $trackingToken) . "' width='1' height='1' alt='' style='display:none;'>
-            ";
+                <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventLink) . "' target='_blank'
+                style='display:inline-block; background:#004085; color:#FFD700; font-size:14px; font-weight:700;
+                        padding:10px 22px; border-radius:4px; text-decoration:none;'>
+                Register Now &rarr;
+                </a>
+            </div>
+
+            <!-- Facebook Block -->
+            <div style='display:table; width:100%; box-sizing:border-box; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; padding:16px 18px; margin-bottom:24px;'>
+                <div style='display:table-cell; vertical-align:top; width:44px; padding-right:12px;'>
+                <div style='width:36px; height:36px; background:#1877F2; border-radius:50%; text-align:center; line-height:36px;'>
+                    <span style='color:#ffffff; font-size:18px; font-weight:700;'>f</span>
+                </div>
+                </div>
+                <div style='display:table-cell; vertical-align:top; font-size:13px; line-height:1.6; color:#444;'>
+                For the latest updates, announcements, and event highlights, follow our official NatCon Facebook page:<br>
+                <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventFb) . "' target='_blank' style='color:#1877F2; font-weight:700; text-decoration:none;'>$eventFb</a>
+                </div>
+            </div>
+
+            <p style='font-size:14px; line-height:1.75; margin:0 0 16px;'>
+                If you need any assistance or require additional documents, please feel free to contact us at any time.
+                Our team is here to support you.
+            </p>
+
+            <p style='font-size:14px; line-height:1.75; margin:0 0 24px;'>
+                Thank you for your interest &mdash; we look forward to welcoming you at the <strong>74th PSME National Convention!</strong>
+            </p>
+
+            <!-- Divider -->
+            <div style='border-top:1px solid #eeeeee; margin:0 0 24px;'></div>
+
+            </div>
+
+            <!-- Footer -->
+            <div style='background:#f8f9fa; border-top:1px solid #dee2e6; padding:20px 40px;'>
+            <div style='font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#888888; margin-bottom:12px;'>
+                Contact Information
+            </div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Phone:</strong>&nbsp;&nbsp;(02) 7752-2527</div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Address:</strong>&nbsp;&nbsp;19 Scout Bayoran St., Brgy. South Triangle, Diliman, Quezon City, Philippines</div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Email:</strong>&nbsp;&nbsp;<a href='mailto:delegates@psmeinc.org.ph' style='color:#004085; text-decoration:none;'>delegates@psmeinc.org.ph</a></div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Website:</strong>&nbsp;&nbsp;<a href='https://psmeinc.org.ph' style='color:#004085; text-decoration:none;'>psmeinc.org.ph</a></div>
+            <div style='border-top:1px solid #eeeeee; margin-top:14px; padding-top:12px; font-size:11px; color:#aaaaaa; line-height:1.5;'>
+                This message was sent on behalf of PSME, Inc. to an invited delegate. If you believe this was sent in error, please disregard this email.
+            </div>
+            </div>
+
+            <!-- Tracking pixel -->
+            <img src='" . buildOpenTrackingUrl($baseUrl, $trackingToken) . "' width='1' height='1' alt='' style='display:none;'>
+
+        </div>
+        </div>
+        ";
             $sourceType = 'bulk_company';
         } else {
             $pdfString = buildIndividualPdf($payload);
             $attachmentName = '74th_NatCon_Invitation_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $payload['company']) . '.pdf';
             $subject = '74th PSME National Convention Official Invitation';
             $htmlBody = "
-                <p>Good day <strong>{$payload['salutation']} {$payload['full_name']}</strong>,</p>
-                <p>
-                    We are pleased to attach your official invitation letter to the 74th PSME National Convention, happening on <strong>$eventDates</strong> at the <strong>$eventVenue</strong>.<br>
-                    This event promises to be an exciting gathering of mechanical engineers, industry leaders, and professionals from across the country.
+        <div style='background:#e8eaf0; padding:32px 16px; font-family:Arial,Helvetica,sans-serif;'>
+        <div style='max-width:620px; margin:0 auto; background:#ffffff; border-radius:4px; overflow:hidden; box-shadow:0 2px 16px rgba(0,0,0,0.10);'>
+
+            <!-- Header -->
+            <div style='background:#004085; padding:36px 40px 28px;'>
+            <div style='color:#FFD700; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;'>
+                Philippine Society of Mechanical Engineers, Inc.
+            </div>
+            <div style='color:#ffffff; font-size:26px; font-weight:700; line-height:1.2; font-family:Georgia,serif; margin-bottom:4px;'>
+                74th PSME National Convention
+            </div>
+            <div style='color:rgba(255,255,255,0.75); font-size:13px;'>Official Invitation</div>
+            <div style='height:5px; background:#FFD700; margin-top:20px; margin-left:-40px; margin-right:-40px;'></div>
+            </div>
+
+            <!-- Event Details Banner -->
+            <div style='background:#003268; display:table; width:100%; box-sizing:border-box;'>
+            <div style='display:table-cell; padding:16px 24px; border-right:1px solid rgba(255,255,255,0.1); width:50%;'>
+                <div style='font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#FFD700; margin-bottom:4px;'>Date</div>
+                <div style='font-size:13px; color:#ffffff; line-height:1.4;'>$eventDates</div>
+            </div>
+            <div style='display:table-cell; padding:16px 24px; width:50%;'>
+                <div style='font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#FFD700; margin-bottom:4px;'>Venue</div>
+                <div style='font-size:13px; color:#ffffff; line-height:1.4;'>$eventVenue</div>
+            </div>
+            </div>
+
+            <!-- Body -->
+            <div style='padding:32px 40px; color:#444444;'>
+
+            <p style='font-family:Georgia,serif; font-size:17px; color:#004085; margin:0 0 20px;'>
+                Good day, <strong>{$payload['salutation']} {$payload['full_name']}</strong>,
+            </p>
+
+            <p style='font-size:14px; line-height:1.75; margin:0 0 16px;'>
+                We are pleased to attach your official invitation letter to the <strong>74th PSME National Convention</strong>.
+                This event promises to be an exciting gathering of mechanical engineers, industry leaders, and professionals
+                from across the country. We encourage you to take part in this milestone event and experience valuable
+                learning, networking, and collaboration opportunities.
+            </p>
+
+            <!-- CTA Block -->
+            <div style='background:#f0f5ff; border-left:4px solid #004085; border-radius:0 6px 6px 0; padding:16px 20px; margin:24px 0;'>
+                <div style='font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#004085; margin-bottom:8px;'>
+                Confirm Your Attendance
+                </div>
+                <p style='font-size:13px; line-height:1.6; margin:0 0 12px; color:#444;'>
+                Secure your slot as soon as possible &mdash; spaces are limited.
                 </p>
-                <p>
-                    <strong>To confirm your attendance and secure your slot, please register as soon as possible:</strong><br>
-                    <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventLink) . "' target='_blank'>$eventLink</a>
-                </p>
-                <p>
-                    For the latest updates, announcements, and event highlights, follow our official NatCon Facebook page:<br>
-                    <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventFb) . "' target='_blank'>$eventFb</a>
-                </p>
-                <p>Thank you for your interest, and we look forward to welcoming you at the 74th PSME National Convention!</p>
-                <p>Sincerely,<br><strong>PSME Invitation Team</strong></p>
-                <img src='" . buildOpenTrackingUrl($baseUrl, $trackingToken) . "' width='1' height='1' alt='' style='display:none;'>
-            ";
+                <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventLink) . "' target='_blank'
+                style='display:inline-block; background:#004085; color:#FFD700; font-size:14px; font-weight:700;
+                        padding:10px 22px; border-radius:4px; text-decoration:none;'>
+                Register Now &rarr;
+                </a>
+            </div>
+
+            <!-- Facebook Block -->
+            <div style='display:table; width:100%; box-sizing:border-box; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; padding:16px 18px; margin-bottom:24px;'>
+                <div style='display:table-cell; vertical-align:top; width:44px; padding-right:12px;'>
+                <div style='width:36px; height:36px; background:#1877F2; border-radius:50%; text-align:center; line-height:36px;'>
+                    <span style='color:#ffffff; font-size:18px; font-weight:700;'>f</span>
+                </div>
+                </div>
+                <div style='display:table-cell; vertical-align:top; font-size:13px; line-height:1.6; color:#444;'>
+                For the latest updates, announcements, and event highlights, follow our official NatCon Facebook page:<br>
+                <a href='" . buildClickTrackingUrl($baseUrl, $trackingToken, $eventFb) . "' target='_blank' style='color:#1877F2; font-weight:700; text-decoration:none;'>$eventFb</a>
+                </div>
+            </div>
+
+            <p style='font-size:14px; line-height:1.75; margin:0 0 16px;'>
+                If you need any assistance or require additional documents, please feel free to contact us at any time.
+                Our team is here to support you.
+            </p>
+
+            <p style='font-size:14px; line-height:1.75; margin:0 0 24px;'>
+                Thank you for your interest &mdash; we look forward to welcoming you at the <strong>74th PSME National Convention!</strong>
+            </p>
+
+            <!-- Divider -->
+            <div style='border-top:1px solid #eeeeee; margin:0 0 24px;'></div>
+
+            </div>
+
+            <!-- Footer -->
+            <div style='background:#f8f9fa; border-top:1px solid #dee2e6; padding:20px 40px;'>
+            <div style='font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#888888; margin-bottom:12px;'>
+                Contact Information
+            </div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Phone:</strong>&nbsp;&nbsp;(02) 7752-2527</div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Address:</strong>&nbsp;&nbsp;19 Scout Bayoran St., Brgy. South Triangle, Diliman, Quezon City, Philippines</div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Email:</strong>&nbsp;&nbsp;<a href='mailto:delegates@psmeinc.org.ph' style='color:#004085; text-decoration:none;'>delegates@psmeinc.org.ph</a></div>
+            <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Website:</strong>&nbsp;&nbsp;<a href='https://psmeinc.org.ph' style='color:#004085; text-decoration:none;'>psmeinc.org.ph</a></div>
+            <div style='border-top:1px solid #eeeeee; margin-top:14px; padding-top:12px; font-size:11px; color:#aaaaaa; line-height:1.5;'>
+                This message was sent on behalf of PSME, Inc. to an invited delegate. If you believe this was sent in error, please disregard this email.
+            </div>
+            </div>
+
+            <!-- Tracking pixel -->
+            <img src='" . buildOpenTrackingUrl($baseUrl, $trackingToken) . "' width='1' height='1' alt='' style='display:none;'>
+
+        </div>
+        </div>
+        ";
             $sourceType = 'bulk_individual';
         }
 

@@ -108,5 +108,14 @@ function buildCompanyPdf(array $data): string {
     }
     $pdf->Image($img2, 0, 0, 216, 330);
 
+    $pdf->AddPage();
+    $img3 = findInvitationImage([
+        __DIR__ . '/../invitation/73rd-NatCon-Invitation-for-FOR-LGU-final_page-0003.jpg'
+    ]);
+    if (!$img3) {
+        throw new Exception('Company page 3 background image not found.');
+    }
+    $pdf->Image($img3, 0, 0, 216, 330);
+
     return $pdf->Output('', 'S');
 }
