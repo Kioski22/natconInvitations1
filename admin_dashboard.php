@@ -53,6 +53,37 @@ if ($result_companies && $result_companies->num_rows > 0) {
     }
 }
 
+// Company invitation requests from supervisor form
+$companyInvites = [];
+$result_company_invites = $conn->query(
+    "SELECT
+        s.id,
+        s.supervisor_name,
+        s.company,
+        s.company_address,
+        s.designation,
+        s.email,
+        s.status,
+        s.created_at,
+        em.message_id,
+        em.sent_at,
+        em.status AS email_status
+     FROM supervisor_invitations s
+     LEFT JOIN (
+        SELECT source_id, MAX(id) AS last_email_id
+        FROM email_messages
+        WHERE source_type = 'company'
+        GROUP BY source_id
+     ) em_last ON em_last.source_id = s.id
+     LEFT JOIN email_messages em ON em.id = em_last.last_email_id
+     ORDER BY s.created_at DESC"
+);
+if ($result_company_invites && $result_company_invites->num_rows > 0) {
+    while ($row = $result_company_invites->fetch_assoc()) {
+        $companyInvites[] = $row;
+    }
+}
+
 // Get SOA Released count (modify this based on actual table structure)
 $sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
 $result_soa = $conn->query($sql_soa);
@@ -414,11 +445,15 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
         </a>
         <a href="javascript:void(0);" onclick="showTab('individual')">
             <i class="bi bi-person-lines-fill"></i>
-            <span>Individual</span>
+            <span>Individual Invitations</span>
         </a>
         <a href="javascript:void(0);" onclick="showTab('company')">
             <i class="bi bi-building"></i>
             <span>Company</span>
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('companyInvites')">
+            <i class="bi bi-envelope-paper"></i>
+            <span>Company Invitations</span>
         </a>
         <a href="javascript:void(0);" onclick="showTab('bulk')">
             <i class="bi bi-upload"></i>
@@ -572,6 +607,49 @@ if ($result_tracking && $result_tracking->num_rows > 0) {
                                 <td><?= htmlspecialchars($comp['company_name']) ?></td>
                                 <td><?= htmlspecialchars($comp['company_address']) ?></td>
                                 <td><?= htmlspecialchars($comp['excel_filename']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Company Invitations Tab -->
+    <div id="companyInvitesTab" class="tab-content" style="display:none;">
+        <h4 class="section-title">Company Invitation Requests</h4>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="companyInvitesTable" data-export-type="company_invites">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Supervisor</th>
+                        <th>Designation</th>
+                        <th>Company</th>
+                        <th>Address</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Requested At</th>
+                        <th>Email Status</th>
+                        <th>Sent At</th>
+                        <th>Message ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($companyInvites)): ?>
+                        <?php foreach ($companyInvites as $invite): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($invite['id']) ?></td>
+                                <td><?= htmlspecialchars($invite['supervisor_name']) ?></td>
+                                <td><?= htmlspecialchars($invite['designation']) ?></td>
+                                <td><?= htmlspecialchars($invite['company']) ?></td>
+                                <td><?= htmlspecialchars($invite['company_address']) ?></td>
+                                <td><?= htmlspecialchars($invite['email']) ?></td>
+                                <td><?= htmlspecialchars($invite['status']) ?></td>
+                                <td><?= htmlspecialchars($invite['created_at']) ?></td>
+                                <td><?= htmlspecialchars($invite['email_status']) ?></td>
+                                <td><?= htmlspecialchars($invite['sent_at']) ?></td>
+                                <td><?= htmlspecialchars($invite['message_id']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -917,7 +995,7 @@ function initializeAdminDataTables() {
 
 function showTab(tab) {
     // Hide all tabs first
-    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'bulkTab', 'trackingTab', 'soaGeneratorTab', 'soaReleasedTab'];
+    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'companyInvitesTab', 'bulkTab', 'trackingTab', 'soaGeneratorTab', 'soaReleasedTab'];
     tabs.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
