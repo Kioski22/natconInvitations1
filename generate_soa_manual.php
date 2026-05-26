@@ -35,7 +35,7 @@ if ($result_last && $row = $result_last->fetch_assoc()) {
     $last_number = 0;
 }
 $new_number = $last_number + 1;
-$soa_number = 'NATCON25-' . str_pad($new_number, 3, '0', STR_PAD_LEFT);
+$soa_number = 'NATCON26-' . str_pad($new_number, 3, '0', STR_PAD_LEFT);
 
 // Insert new SOA number record
 $stmt = $conn->prepare("INSERT INTO soa_sequence (soa_number) VALUES (?)");
@@ -171,7 +171,7 @@ $pdf->Cell(0, 6, $particulars, 0, 1);
 
 $pdf->Ln(2);
 
-$pdf->Cell(30, 6, 'This is to formally bill you for the registration PSME 73rd National Convention', 0, 0);
+$pdf->Cell(30, 6, 'This is to formally bill you for the registration PSME 74th National Convention', 0, 0);
 $pdf->Cell(0, 6, '', 0, 1);
 
 $pdf->Cell(30, 6, 'Please see below the details of computation:', 0, 0);

@@ -5,17 +5,31 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 require 'db.php';
+require_once __DIR__ . '/helpers/csrf.php';
 
-// Pagination setup for invitations
-$limit = 7; // records per page
-$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
-
-// Get count of sent invitations
-$sql_sent = "SELECT COUNT(*) as total_sent FROM invitations WHERE status='sent'";
-$result_sent = $conn->query($sql_sent);
-$row_sent = $result_sent->fetch_assoc();
-$total_sent = $row_sent['total_sent'];
+// Tracking totals
+$totals = [
+    'total_sent' => 0,
+    'total_opened' => 0,
+    'total_replied' => 0,
+    'total_bounced' => 0,
+    'total_clicked' => 0
+];
+$result_totals = $conn->query(
+    "SELECT
+        SUM(sent_at IS NOT NULL) AS total_sent,
+        SUM(opened_at IS NOT NULL) AS total_opened,
+        SUM(replied_at IS NOT NULL) AS total_replied,
+        SUM(bounced_at IS NOT NULL) AS total_bounced,
+        SUM(clicked_at IS NOT NULL) AS total_clicked
+     FROM email_messages"
+);
+if ($result_totals) {
+    $row_totals = $result_totals->fetch_assoc();
+    if ($row_totals) {
+        $totals = array_merge($totals, $row_totals);
+    }
+}
 
 // ✅ Define SQL for fetching companies
 $sql_companies = "
@@ -39,11 +53,60 @@ if ($result_companies && $result_companies->num_rows > 0) {
     }
 }
 
+// Company invitation requests from supervisor form
+$companyInvites = [];
+$result_company_invites = $conn->query(
+    "SELECT
+        s.id,
+        s.supervisor_name,
+        s.company,
+        s.company_address,
+        s.designation,
+        s.email,
+        s.status,
+        s.created_at,
+        em.message_id,
+        em.sent_at,
+        em.status AS email_status
+     FROM supervisor_invitations s
+     LEFT JOIN (
+        SELECT source_id, MAX(id) AS last_email_id
+        FROM email_messages
+        WHERE source_type = 'company'
+        GROUP BY source_id
+     ) em_last ON em_last.source_id = s.id
+     LEFT JOIN email_messages em ON em.id = em_last.last_email_id
+     ORDER BY s.created_at DESC"
+);
+if ($result_company_invites && $result_company_invites->num_rows > 0) {
+    while ($row = $result_company_invites->fetch_assoc()) {
+        $companyInvites[] = $row;
+    }
+}
+
 // Get SOA Released count (modify this based on actual table structure)
 $sql_soa = "SELECT COUNT(*) as total_soa FROM soa_sequence";
 $result_soa = $conn->query($sql_soa);
 $row_soa = $result_soa->fetch_assoc();
 $total_soa = $row_soa['total_soa'];
+
+// Bulk invitation queue
+$bulkInvites = [];
+$result_bulk = $conn->query("SELECT * FROM invitation_queue ORDER BY created_at DESC");
+if ($result_bulk && $result_bulk->num_rows > 0) {
+    while ($row = $result_bulk->fetch_assoc()) {
+        $bulkInvites[] = $row;
+    }
+}
+
+// Email tracking
+$trackingRows = [];
+$result_tracking = $conn->query("SELECT * FROM email_messages ORDER BY created_at DESC");
+if ($result_tracking && $result_tracking->num_rows > 0) {
+    while ($row = $result_tracking->fetch_assoc()) {
+        $trackingRows[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -52,6 +115,8 @@ $total_soa = $row_soa['total_soa'];
     <title>PSME Admin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -321,6 +386,35 @@ $total_soa = $row_soa['total_soa'];
             border-radius: var(--border-radius);
             overflow: hidden;
         }
+
+        .dataTables_wrapper .dt-buttons {
+            margin-bottom: 12px;
+        }
+
+        .dataTables_wrapper .dataTables_filter {
+            margin-bottom: 12px;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            padding: 8px 12px;
+        }
+
+        .dataTables_wrapper .dataTables_length select {
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            padding: 6px 32px 6px 12px;
+        }
+
+        .dataTables_wrapper .dataTables_info,
+        .dataTables_wrapper .dataTables_paginate {
+            margin-top: 12px;
+        }
+
+        .dt-button.btn {
+            margin-right: 8px;
+        }
         
         .logout-link {
             margin-top: auto;
@@ -351,11 +445,23 @@ $total_soa = $row_soa['total_soa'];
         </a>
         <a href="javascript:void(0);" onclick="showTab('individual')">
             <i class="bi bi-person-lines-fill"></i>
-            <span>Individual</span>
+            <span>Individual Invitations</span>
         </a>
         <a href="javascript:void(0);" onclick="showTab('company')">
             <i class="bi bi-building"></i>
             <span>Company</span>
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('companyInvites')">
+            <i class="bi bi-envelope-paper"></i>
+            <span>Company Invitations</span>
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('bulk')">
+            <i class="bi bi-upload"></i>
+            <span>Bulk Invitations</span>
+        </a>
+        <a href="javascript:void(0);" onclick="showTab('tracking')">
+            <i class="bi bi-activity"></i>
+            <span>Tracking</span>
         </a>
         <a href="javascript:void(0);" onclick="showTab('soaGenerator')">
             <i class="bi bi-file-earmark-pdf"></i>
@@ -387,13 +493,61 @@ $total_soa = $row_soa['total_soa'];
     <!-- Dashboard Tab -->
     <div id="dashboardTab" class="tab-content">
         <h4 class="section-title">Overview</h4>
-        <div class="card status-card">
-            <div class="card-header">
-                <i class="bi bi-envelope-fill me-2"></i>Emails Sent
+        <div class="row g-3">
+            <div class="col-md-6 col-lg-3">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <i class="bi bi-envelope-fill me-2"></i>Sent
+                    </div>
+                    <div class="card-body text-center">
+                        <h1><?= (int)$totals['total_sent'] ?></h1>
+                        <p class="mb-0">Emails sent</p>
+                    </div>
+                </div>
             </div>
-            <div class="card-body text-center">
-                <h1><?= $total_sent ?></h1>
-                <p class="mb-0">Total invitations sent</p>
+            <div class="col-md-6 col-lg-3">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <i class="bi bi-envelope-open me-2"></i>Opened
+                    </div>
+                    <div class="card-body text-center">
+                        <h1><?= (int)$totals['total_opened'] ?></h1>
+                        <p class="mb-0">Opens recorded</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <i class="bi bi-reply-fill me-2"></i>Replied
+                    </div>
+                    <div class="card-body text-center">
+                        <h1><?= (int)$totals['total_replied'] ?></h1>
+                        <p class="mb-0">Replies detected</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <i class="bi bi-x-octagon-fill me-2"></i>Bounced
+                    </div>
+                    <div class="card-body text-center">
+                        <h1><?= (int)$totals['total_bounced'] ?></h1>
+                        <p class="mb-0">Bounces detected</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <i class="bi bi-cursor-fill me-2"></i>Clicked
+                    </div>
+                    <div class="card-body text-center">
+                        <h1><?= (int)$totals['total_clicked'] ?></h1>
+                        <p class="mb-0">Clicks recorded</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -402,7 +556,7 @@ $total_soa = $row_soa['total_soa'];
     <div id="individualTab" class="tab-content" style="display:none;">
         <h4 class="section-title">Individual Invitations</h4>
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover admin-data-table" id="individualTable" data-export-type="individual">
                 <thead>
                     <tr>
                         <th>Event</th><th>Company</th><th>Email</th><th>Name</th><th>Designation</th><th>Address</th><th>Status</th>
@@ -410,13 +564,7 @@ $total_soa = $row_soa['total_soa'];
                 </thead>
             <tbody>
             <?php
-            // Get total records for pagination
-            $sql_count = "SELECT COUNT(*) as total FROM invitations";
-            $result_count = $conn->query($sql_count);
-            $total_records = $result_count->fetch_assoc()['total'];
-            $total_pages = ceil($total_records / $limit);
-
-            $sql = "SELECT * FROM invitations ORDER BY event, company LIMIT $limit OFFSET $offset";
+            $sql = "SELECT * FROM invitations ORDER BY event, company";
             $result = $conn->query($sql);
             if ($result->num_rows > 0):
                 while($row = $result->fetch_assoc()):
@@ -436,81 +584,13 @@ $total_soa = $row_soa['total_soa'];
             </tbody>
             </table>
         </div>
-        <!-- Pagination controls -->
-        <div class="d-flex justify-content-between align-items-center mt-4">
-            <div class="text-muted">
-                Showing <?= ($offset + 1) ?> to <?= min($offset + $limit, $total_records) ?> of <?= $total_records ?> entries
-            </div>
-            <nav aria-label="Individual pagination">
-                <ul class="pagination pagination-sm mb-0">
-                    <?php if ($page > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1" onclick="loadIndividualPage(1); return false;" aria-label="First">
-                                <i class="bi bi-chevron-double-left"></i>
-                            </a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $page-1 ?>" onclick="loadIndividualPage(<?= $page-1 ?>); return false;" aria-label="Previous">
-                                <i class="bi bi-chevron-left"></i>
-                            </a>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <?php
-                    // Show page numbers with ellipsis for large page counts
-                    $start_page = max(1, $page - 2);
-                    $end_page = min($total_pages, $page + 2);
-                    
-                    if ($start_page > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1" onclick="loadIndividualPage(1); return false;">1</a>
-                        </li>
-                        <?php if ($start_page > 2): ?>
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                    
-                    <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
-                        <li class="page-item <?= $i == $page ? 'active' : '' ?>">
-                            <a class="page-link" href="?page=<?= $i ?>" onclick="loadIndividualPage(<?= $i ?>); return false;"><?= $i ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    
-                    <?php if ($end_page < $total_pages): ?>
-                        <?php if ($end_page < $total_pages - 1): ?>
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        <?php endif; ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $total_pages ?>" onclick="loadIndividualPage(<?= $total_pages ?>); return false;"><?= $total_pages ?></a>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <?php if ($page < $total_pages): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $page+1 ?>" onclick="loadIndividualPage(<?= $page+1 ?>); return false;" aria-label="Next">
-                                <i class="bi bi-chevron-right"></i>
-                            </a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page=<?= $total_pages ?>" onclick="loadIndividualPage(<?= $total_pages ?>); return false;" aria-label="Last">
-                                <i class="bi bi-chevron-double-right"></i>
-                            </a>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </nav>
-        </div>
     </div>
 
     <!-- Company Tab -->
     <div id="companyTab" class="tab-content" style="display:none;">
         <h4 class="section-title">Company Summary</h4>
         <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="companyTable" data-export-type="company">
                 <thead class="table-primary">
                     <tr>
                         <th>ID</th>
@@ -519,7 +599,7 @@ $total_soa = $row_soa['total_soa'];
                         <th>Excel Filename</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="companyTableBody">
                     <?php if (!empty($companies)): ?>
                         <?php foreach ($companies as $comp): ?>
                             <tr>
@@ -529,8 +609,171 @@ $total_soa = $row_soa['total_soa'];
                                 <td><?= htmlspecialchars($comp['excel_filename']) ?></td>
                             </tr>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="4" class="text-center text-muted">No companies found.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Company Invitations Tab -->
+    <div id="companyInvitesTab" class="tab-content" style="display:none;">
+        <h4 class="section-title">Company Invitation Requests</h4>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="companyInvitesTable" data-export-type="company_invites">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Supervisor</th>
+                        <th>Designation</th>
+                        <th>Company</th>
+                        <th>Address</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Requested At</th>
+                        <th>Email Status</th>
+                        <th>Sent At</th>
+                        <th>Message ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($companyInvites)): ?>
+                        <?php foreach ($companyInvites as $invite): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($invite['id']) ?></td>
+                                <td><?= htmlspecialchars($invite['supervisor_name']) ?></td>
+                                <td><?= htmlspecialchars($invite['designation']) ?></td>
+                                <td><?= htmlspecialchars($invite['company']) ?></td>
+                                <td><?= htmlspecialchars($invite['company_address']) ?></td>
+                                <td><?= htmlspecialchars($invite['email']) ?></td>
+                                <td><?= htmlspecialchars($invite['status']) ?></td>
+                                <td><?= htmlspecialchars($invite['created_at']) ?></td>
+                                <td><?= htmlspecialchars($invite['email_status']) ?></td>
+                                <td><?= htmlspecialchars($invite['sent_at']) ?></td>
+                                <td><?= htmlspecialchars($invite['message_id']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bulk Invitations Tab -->
+    <div id="bulkTab" class="tab-content" style="display:none;">
+        <h4 class="section-title">Bulk Invitations</h4>
+        <div class="mb-4">
+            <p class="text-muted mb-2">Upload a CSV with these columns:</p>
+            <div class="small text-muted">type, email, full_name, designation, company, address, salutation (optional), hr_email (optional)</div>
+            <div class="small text-muted">type values: company or individual</div>
+            <div class="mt-2">
+                <a id="downloadBulkTemplate" class="btn btn-sm btn-outline-secondary" href="#" download="bulk_invitation_template.csv">
+                    <i class="bi bi-download me-1"></i>Download CSV Template
+                </a>
+            </div>
+        </div>
+        <form id="bulkInviteForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <label class="form-label">CSV File</label>
+                    <input type="file" id="bulkCsvFile" name="csv_file" accept=".csv" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-send me-2"></i>Upload & Queue
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <div id="bulkPreview" class="mt-4"></div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="runQueueBtn">
+                <i class="bi bi-play-circle me-1"></i>Run Queue Now
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="retryFailedBtn">
+                <i class="bi bi-arrow-clockwise me-1"></i>Retry Failed
+            </button>
+            <span id="runQueueStatus" class="small text-muted"></span>
+            <span id="retryFailedStatus" class="small text-muted"></span>
+        </div>
+        <div id="bulkInviteResult" class="mt-3"></div>
+
+        <div class="table-responsive mt-4">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="bulkTable" data-export-type="bulk">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Email</th>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Sent At</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody id="bulkInviteTableBody">
+                    <?php if (!empty($bulkInvites)): ?>
+                        <?php foreach ($bulkInvites as $invite): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($invite['id']) ?></td>
+                                <td><?= htmlspecialchars($invite['type']) ?></td>
+                                <td><?= htmlspecialchars($invite['email']) ?></td>
+                                <td><?= htmlspecialchars($invite['full_name']) ?></td>
+                                <td><?= htmlspecialchars($invite['company']) ?></td>
+                                <td><?= htmlspecialchars($invite['status']) ?></td>
+                                <td><?= htmlspecialchars($invite['sent_at']) ?></td>
+                                <td><?= htmlspecialchars($invite['error_message']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tracking Tab -->
+    <div id="trackingTab" class="tab-content" style="display:none;">
+        <h4 class="section-title">Email Tracking</h4>
+        <div class="mb-3">
+            <button type="button" class="btn btn-outline-primary" id="syncRepliesBtn">
+                <i class="bi bi-arrow-repeat me-2"></i>Sync Tracking
+            </button>
+            <span id="syncRepliesStatus" class="small text-muted ms-2"></span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle admin-data-table" id="trackingTable" data-export-type="tracking">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Source</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Sent At</th>
+                        <th>Opened At</th>
+                        <th>Clicked At</th>
+                        <th>Replied At</th>
+                        <th>Bounced At</th>
+                        <th>Last Event</th>
+                    </tr>
+                </thead>
+                <tbody id="trackingTableBody">
+                    <?php if (!empty($trackingRows)): ?>
+                        <?php foreach ($trackingRows as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['id']) ?></td>
+                                <td><?= htmlspecialchars($row['source_type']) ?></td>
+                                <td><?= htmlspecialchars($row['email']) ?></td>
+                                <td><?= htmlspecialchars($row['status']) ?></td>
+                                <td><?= htmlspecialchars($row['sent_at']) ?></td>
+                                <td><?= htmlspecialchars($row['opened_at']) ?></td>
+                                <td><?= htmlspecialchars($row['clicked_at']) ?></td>
+                                <td><?= htmlspecialchars($row['replied_at']) ?></td>
+                                <td><?= htmlspecialchars($row['bounced_at']) ?></td>
+                                <td><?= htmlspecialchars($row['last_event_at']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -614,7 +857,7 @@ $total_soa = $row_soa['total_soa'];
         </div>
 
         <!-- Sample table of released SOAs -->
-        <table class="table table-bordered">
+        <table class="table table-bordered admin-data-table" id="soaReleasedTable" data-export-type="soa_released">
             <thead>
                 <tr>
                     <th>SOA Number</th>
@@ -632,9 +875,7 @@ $total_soa = $row_soa['total_soa'];
                     <td><?= htmlspecialchars($row['soa_number']) ?></td>
                     <td><?= htmlspecialchars($row['created_at']) ?></td>
                 </tr>
-            <?php endwhile; else: ?>
-                <tr><td colspan="2" class="text-center">No SOA released records found.</td></tr>
-            <?php endif; ?>
+            <?php endwhile; endif; ?>
             </tbody>
         </table>
     </div>
@@ -642,10 +883,119 @@ $total_soa = $row_soa['total_soa'];
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 <script>
+function getExportDateStamp() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+}
+
+function normalizeExportSegment(value, fallbackValue) {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_-]/g, '');
+
+    return normalized || fallbackValue;
+}
+
+function getAdminTableInstance(selector) {
+    if (typeof $.fn.DataTable !== 'function' || !$(selector).length || !$.fn.dataTable.isDataTable(selector)) {
+        return null;
+    }
+
+    return $(selector).DataTable();
+}
+
+function refreshVisibleAdminTables() {
+    if (typeof $.fn.DataTable !== 'function') {
+        return;
+    }
+
+    $('.admin-data-table:visible').each(function() {
+        if ($.fn.dataTable.isDataTable(this)) {
+            $(this).DataTable().columns.adjust();
+        }
+    });
+}
+
+function setTableRows(selector, rows, emptyRowHtml) {
+    const tableInstance = getAdminTableInstance(selector);
+    const tbody = document.querySelector(selector + ' tbody');
+
+    if (!tbody) {
+        return;
+    }
+
+    if (tableInstance) {
+        tableInstance.clear();
+        if (rows.length > 0) {
+            tableInstance.rows.add(rows).draw();
+        } else {
+            tableInstance.draw();
+            tbody.innerHTML = emptyRowHtml;
+        }
+        tableInstance.columns.adjust();
+        return;
+    }
+
+    tbody.innerHTML = rows.length > 0 ? rows.join('') : emptyRowHtml;
+}
+
+function initializeAdminDataTables() {
+    if (typeof $.fn.DataTable !== 'function') {
+        return;
+    }
+
+    $('.admin-data-table').each(function() {
+        const table = $(this);
+        if ($.fn.dataTable.isDataTable(this)) {
+            return;
+        }
+
+        const exportType = normalizeExportSegment(table.data('export-type'), 'table');
+
+        table.DataTable({
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+            order: [],
+            language: {
+                emptyTable: 'No records found.'
+            },
+            dom: "<'row align-items-center mb-3'<'col-md-6'B><'col-md-6'f>>" +
+                "<'row'<'col-12'tr>>" +
+                "<'row align-items-center mt-3'<'col-md-5'i><'col-md-7'p>>",
+            buttons: [{
+                extend: 'excelHtml5',
+                text: '<i class="bi bi-file-earmark-excel me-1"></i>Export Excel',
+                className: 'btn btn-success btn-sm',
+                filename: function() {
+                    const instance = table.DataTable();
+                    const filterText = normalizeExportSegment(instance.search(), 'all');
+                    return exportType + '_' + getExportDateStamp() + '_' + filterText;
+                },
+                title: null,
+                exportOptions: {
+                    search: 'applied',
+                    order: 'applied'
+                }
+            }]
+        });
+    });
+}
+
 function showTab(tab) {
     // Hide all tabs first
-    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'soaGeneratorTab', 'soaReleasedTab'];
+    const tabs = ['dashboardTab', 'individualTab', 'companyTab', 'companyInvitesTab', 'bulkTab', 'trackingTab', 'soaGeneratorTab', 'soaReleasedTab'];
     tabs.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
@@ -670,6 +1020,7 @@ function showTab(tab) {
     });
     
     console.log('Switched to tab:', tab);
+    refreshVisibleAdminTables();
 }
 
 $('#companySelect').on('change', function(){
@@ -773,20 +1124,396 @@ $('#clearAutoBtn').on('click', function() {
     }
 });
 
-// Load individual page with AJAX
-function loadIndividualPage(page) {
-    // Just update the URL and reload to get new data
-    const url = new URL(window.location);
-    url.searchParams.set('page', page);
-    window.location.href = url.toString();
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAdminDataTables();
+});
+
+const bulkForm = document.getElementById('bulkInviteForm');
+const bulkFileInput = document.getElementById('bulkCsvFile');
+const bulkPreview = document.getElementById('bulkPreview');
+const downloadBulkTemplate = document.getElementById('downloadBulkTemplate');
+const bulkColumns = ['type', 'email', 'full_name', 'designation', 'company', 'address', 'salutation', 'hr_email'];
+let bulkPreviewRows = [];
+
+function parseCsvText(text) {
+    const rows = [];
+    let current = '';
+    let inQuotes = false;
+    const pushCell = (row, cell) => row.push(cell);
+    let row = [];
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '"') {
+            if (inQuotes && text[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            pushCell(row, current);
+            current = '';
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+            if (char === '\r' && text[i + 1] === '\n') {
+                i++;
+            }
+            pushCell(row, current);
+            current = '';
+            if (row.length > 1 || (row.length === 1 && row[0].trim() !== '')) {
+                rows.push(row);
+            }
+            row = [];
+        } else {
+            current += char;
+        }
+    }
+
+    if (current.length > 0 || row.length > 0) {
+        pushCell(row, current);
+        rows.push(row);
+    }
+
+    return rows;
 }
 
-// Ensure correct tab is shown on page reload with pagination
-document.addEventListener('DOMContentLoaded', function() {
-    if (window.location.search.includes('page=')) {
-        showTab('individual');
+function buildCsvText(headers, rows) {
+    const escapeCell = (value) => {
+        const str = String(value ?? '');
+        if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+    };
+
+    const lines = [];
+    lines.push(headers.map(escapeCell).join(','));
+    rows.forEach(row => {
+        const line = headers.map((header) => escapeCell(row[header] ?? '')).join(',');
+        lines.push(line);
+    });
+    return lines.join('\r\n');
+}
+
+function renderBulkPreview(headers, rows) {
+    if (!bulkPreview) {
+        return;
     }
-});
+
+    if (rows.length === 0) {
+        bulkPreview.innerHTML = '<div class="text-muted">No rows found to preview.</div>';
+        return;
+    }
+
+    let html = '<div class="alert alert-info">Preview the CSV before sending. You can adjust the type per row.</div>';
+    html += '<div class="table-responsive"><table class="table table-bordered table-sm align-middle">';
+    html += '<thead class="table-light"><tr>';
+    headers.forEach(col => {
+        html += '<th>' + col + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    rows.forEach((row, index) => {
+        html += '<tr data-row-index="' + index + '">';
+        headers.forEach(col => {
+            if (col === 'type') {
+                const current = (row[col] || 'individual').toLowerCase();
+                html += '<td>' +
+                    '<select class="form-select form-select-sm bulk-type" data-col="type">' +
+                        '<option value="individual"' + (current === 'individual' ? ' selected' : '') + '>individual</option>' +
+                        '<option value="company"' + (current === 'company' ? ' selected' : '') + '>company</option>' +
+                    '</select>' +
+                '</td>';
+            } else {
+                const value = row[col] ?? '';
+                html += '<td><input type="text" class="form-control form-control-sm bulk-cell" data-col="' + col + '" value="' +
+                    String(value).replace(/"/g, '&quot;') + '"></td>';
+            }
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    bulkPreview.innerHTML = html;
+}
+
+function setBulkPreviewFromFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const text = event.target.result || '';
+        const rows = parseCsvText(text);
+        if (rows.length === 0) {
+            bulkPreviewRows = [];
+            renderBulkPreview(bulkColumns, []);
+            return;
+        }
+
+        const headerRow = rows.shift().map(col => col.trim().toLowerCase());
+        if (headerRow.length > 0) {
+            headerRow[0] = headerRow[0].replace(/^\ufeff/, '');
+        }
+        const headers = headerRow.length ? headerRow : bulkColumns;
+        const normalizedRows = rows.map(row => {
+            const data = {};
+            headers.forEach((header, idx) => {
+                data[header] = row[idx] ?? '';
+            });
+            return data;
+        });
+
+        bulkPreviewRows = normalizedRows;
+        renderBulkPreview(headers, normalizedRows);
+    };
+    reader.readAsText(file);
+}
+
+function collectPreviewRows(headers) {
+    const collected = [];
+    const rows = bulkPreview.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const data = {};
+        headers.forEach(header => {
+            if (header === 'type') {
+                const select = row.querySelector('select[data-col="type"]');
+                data.type = select ? select.value : 'individual';
+            } else {
+                const input = row.querySelector('input[data-col="' + header + '"]');
+                data[header] = input ? input.value : '';
+            }
+        });
+        collected.push(data);
+    });
+    return collected;
+}
+
+if (downloadBulkTemplate) {
+    const templateRow = {
+        type: 'individual',
+        email: 'jane.doe@example.com',
+        full_name: 'Jane Doe',
+        designation: 'Mechanical Engineer',
+        company: 'Example Corp',
+        address: '123 Main St, City',
+        salutation: 'Engr.',
+        hr_email: 'hr@example.com'
+    };
+    const templateCsv = buildCsvText(bulkColumns, [templateRow]);
+    const blob = new Blob([templateCsv], { type: 'text/csv' });
+    downloadBulkTemplate.href = URL.createObjectURL(blob);
+}
+
+if (bulkFileInput) {
+    bulkFileInput.addEventListener('change', function() {
+        const file = bulkFileInput.files && bulkFileInput.files[0];
+        if (!file) {
+            bulkPreviewRows = [];
+            bulkPreview.innerHTML = '';
+            return;
+        }
+        setBulkPreviewFromFile(file);
+    });
+}
+
+if (bulkForm) {
+    bulkForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(bulkForm);
+        const resultEl = document.getElementById('bulkInviteResult');
+        if (!bulkPreview || bulkPreviewRows.length === 0) {
+            resultEl.innerHTML = '<div class="alert alert-warning">Please upload a CSV and preview it before sending.</div>';
+            return;
+        }
+        const previewHeaders = bulkPreview.querySelectorAll('thead th');
+        const headers = previewHeaders.length
+            ? Array.from(previewHeaders).map(th => th.textContent.trim())
+            : bulkColumns;
+        const updatedRows = collectPreviewRows(headers);
+        const previewCsv = buildCsvText(headers, updatedRows);
+        formData.set('csv_file', new Blob([previewCsv], { type: 'text/csv' }), 'bulk_preview.csv');
+        resultEl.innerHTML = '<div class="text-muted">Uploading and sending...</div>';
+
+        try {
+            const response = await fetch('process_bulk_invites.php', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.error) {
+                resultEl.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+                return;
+            }
+            let html = '<div class="alert alert-success">' +
+                'Batch ' + (data.batch_id || '-') + ': ' +
+                (data.queued ?? 0) + ' queued, ' + data.failed + ' failed, ' + data.total + ' total.' +
+                '</div>';
+            if (data.errors && data.errors.length > 0) {
+                html += '<div class="alert alert-warning"><strong>Errors:</strong><ul>';
+                data.errors.forEach(err => {
+                    html += '<li>Row ' + err.row + ': ' + err.error + '</li>';
+                });
+                html += '</ul></div>';
+            }
+            resultEl.innerHTML = html;
+        } catch (err) {
+            resultEl.innerHTML = '<div class="alert alert-danger">Upload failed. Please try again.</div>';
+        }
+    });
+}
+
+const retryFailedBtn = document.getElementById('retryFailedBtn');
+const retryFailedStatus = document.getElementById('retryFailedStatus');
+const runQueueBtn = document.getElementById('runQueueBtn');
+const runQueueStatus = document.getElementById('runQueueStatus');
+const csrfInput = document.querySelector('input[name="csrf_token"]');
+const getCsrfToken = () => (csrfInput ? csrfInput.value : '');
+
+if (runQueueBtn) {
+    runQueueBtn.addEventListener('click', async function() {
+        const csrfToken = getCsrfToken();
+
+        if (runQueueStatus) {
+            runQueueStatus.textContent = 'Running queue...';
+        }
+
+        try {
+            const response = await fetch('run_queue.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'csrf_token=' + encodeURIComponent(csrfToken)
+            });
+            const data = await response.json();
+            if (data.error) {
+                if (runQueueStatus) {
+                    runQueueStatus.textContent = data.error;
+                }
+                return;
+            }
+            if (runQueueStatus) {
+                runQueueStatus.textContent = 'Sent: ' + (data.sent ?? 0) + ', Failed: ' + (data.failed ?? 0) + '.';
+            }
+        } catch (err) {
+            if (runQueueStatus) {
+                runQueueStatus.textContent = 'Queue run failed. Please try again.';
+            }
+        }
+    });
+}
+if (retryFailedBtn) {
+    retryFailedBtn.addEventListener('click', async function() {
+        const csrfToken = getCsrfToken();
+
+        if (retryFailedStatus) {
+            retryFailedStatus.textContent = 'Retrying failed items...';
+        }
+
+        try {
+            const response = await fetch('retry_failed.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'csrf_token=' + encodeURIComponent(csrfToken)
+            });
+            const data = await response.json();
+            if (data.error) {
+                if (retryFailedStatus) {
+                    retryFailedStatus.textContent = data.error;
+                }
+                return;
+            }
+            if (retryFailedStatus) {
+                retryFailedStatus.textContent = 'Reset: ' + (data.reset ?? 0) + ' failed item(s).';
+            }
+        } catch (err) {
+            if (retryFailedStatus) {
+                retryFailedStatus.textContent = 'Retry failed. Please try again.';
+            }
+        }
+    });
+}
+
+function escapeHtml(value) {
+    const text = String(value ?? '');
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+async function refreshTrackingTable() {
+    if (!document.getElementById('trackingTableBody')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('get_tracking.php?ts=' + Date.now(), { cache: 'no-store' });
+        const data = await response.json();
+        if (!data || !Array.isArray(data.rows)) {
+            return;
+        }
+
+        const rows = data.rows.map(row => {
+            return '<tr>' +
+                '<td>' + escapeHtml(row.id) + '</td>' +
+                '<td>' + escapeHtml(row.source_type) + '</td>' +
+                '<td>' + escapeHtml(row.email) + '</td>' +
+                '<td>' + escapeHtml(row.status) + '</td>' +
+                '<td>' + escapeHtml(row.sent_at) + '</td>' +
+                '<td>' + escapeHtml(row.opened_at) + '</td>' +
+                '<td>' + escapeHtml(row.clicked_at) + '</td>' +
+                '<td>' + escapeHtml(row.replied_at) + '</td>' +
+                '<td>' + escapeHtml(row.bounced_at) + '</td>' +
+                '<td>' + escapeHtml(row.last_event_at) + '</td>' +
+            '</tr>';
+        });
+
+        setTableRows(
+            '#trackingTable',
+            rows,
+            '<tr><td colspan="10" class="text-center text-muted">No tracking records yet.</td></tr>'
+        );
+    } catch (err) {
+        // Ignore transient polling errors.
+    }
+}
+
+const syncRepliesBtn = document.getElementById('syncRepliesBtn');
+const syncRepliesStatus = document.getElementById('syncRepliesStatus');
+if (syncRepliesBtn) {
+    syncRepliesBtn.addEventListener('click', async function() {
+        if (syncRepliesStatus) {
+            syncRepliesStatus.textContent = 'Syncing tracking data...';
+        }
+
+        try {
+            const openResponse = await fetch('sync_opens.php?ts=' + Date.now(), { cache: 'no-store' });
+            const openText = await openResponse.text();
+
+            const replyResponse = await fetch('sync_replies.php?ts=' + Date.now(), { cache: 'no-store' });
+            const replyText = await replyResponse.text();
+
+            const bounceResponse = await fetch('sync_bounces.php?ts=' + Date.now(), { cache: 'no-store' });
+            const bounceText = await bounceResponse.text();
+
+            if (syncRepliesStatus) {
+                syncRepliesStatus.textContent =
+                    (openText.trim() || 'Open sync complete.') + ' | ' +
+                    (replyText.trim() || 'Reply sync complete.') + ' | ' +
+                    (bounceText.trim() || 'Bounce sync complete.');
+            }
+        } catch (err) {
+            if (syncRepliesStatus) {
+                syncRepliesStatus.textContent = 'Sync failed. Please try again.';
+            }
+        } finally {
+            await refreshTrackingTable();
+        }
+    });
+}
 </script>
 
 

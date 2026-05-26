@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="login-card">
     <div class="brand-header">
-        <img src="img/natconlogo.jpg" alt="PSME Logo">
+        <img src="img/psme_logo.png" alt="PSME Logo">
         <h2>PSME Admin Login</h2>
     </div>
 
