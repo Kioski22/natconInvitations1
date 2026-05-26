@@ -105,7 +105,7 @@ if ($conn->query($sql) === TRUE) {
         $mail->Port = 587;
 
         // Email content
-        $mail->setFrom('delegates@psmeinc.org.ph', 'PSME Invitation Team');
+        $mail->setFrom('delegates1@psmeinc.org.ph', 'PSME Invitation Team');
         $mail->addAddress($email, $full_name);
         $mail->Subject = 'Your 74th PSME NatCon Invitation';
         $mail->Body = "Dear $full_name,
@@ -139,7 +139,7 @@ PHILIPPINE SOCIETY OF MECHANICAL ENGINEERS, INC.
 Should you have any concerns? Let us know, you may contact us at:
 (02) 7752-2527
 19 Scout Bayoran St. Brgy, South Triangle, Diliman, Quezon City, Philippines
-Email: delegates@psmeinc.org.ph
+Email: delegates1@psmeinc.org.ph
 Website: psmeinc.org.ph";
 
         // Attach PDF with company name in filename

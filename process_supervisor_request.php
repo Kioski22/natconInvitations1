@@ -196,7 +196,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 <p style='font-size:14px; line-height:1.75; margin:0 0 16px;'>
                     For inquiries, please feel free to reach out to us at
-                    <a href='mailto:delegates@psmeinc.org.ph' style='color:#004085; text-decoration:none; font-weight:700;'>delegates@psmeinc.org.ph</a>.
+                    <a href='mailto:delegates1@psmeinc.org.ph' style='color:#004085; text-decoration:none; font-weight:700;'>delegates1@psmeinc.org.ph</a>.
                     Our team is here to support you.
                 </p>
 
@@ -216,7 +216,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
                 <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Phone:</strong>&nbsp;&nbsp;(02) 7752-2527</div>
                 <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Address:</strong>&nbsp;&nbsp;19 Scout Bayoran St., Brgy. South Triangle, Diliman, Quezon City, Philippines</div>
-                <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Email:</strong>&nbsp;&nbsp;<a href='mailto:delegates@psmeinc.org.ph' style='color:#004085; text-decoration:none;'>delegates@psmeinc.org.ph</a></div>
+                <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Email:</strong>&nbsp;&nbsp;<a href='mailto:delegates1@psmeinc.org.ph' style='color:#004085; text-decoration:none;'>delegates1@psmeinc.org.ph</a></div>
                 <div style='font-size:12px; color:#555555; margin-bottom:6px;'><strong style='color:#333;'>Website:</strong>&nbsp;&nbsp;<a href='https://psmeinc.org.ph' style='color:#004085; text-decoration:none;'>psmeinc.org.ph</a></div>
                 <div style='border-top:1px solid #eeeeee; margin-top:14px; padding-top:12px; font-size:11px; color:#aaaaaa; line-height:1.5;'>
                     This message was sent on behalf of PSME, Inc. to an invited delegate. If you believe this was sent in error, please disregard this email.
