@@ -29,6 +29,7 @@ function findInvitationImage(array $candidates) {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Collect and sanitize form data
     $supervisor_name = $conn->real_escape_string($_POST['supervisor_name']);
+    $thru = trim((string)($_POST['thru'] ?? ''));
     $company = $conn->real_escape_string($_POST['company']);
     $company_address = $conn->real_escape_string($_POST['company_address']);
     $designation = $conn->real_escape_string($_POST['designation']);
@@ -74,6 +75,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $pdf->SetXY(55, 85);
         $pdf->MultiCell(150, 10, $company_address, 0, 'L');
+        if ($thru !== '') {
+            $pdf->SetFont('helvetica', '', 9);
+            $pdf->SetXY(55, $pdf->GetY() - 2.7);
+            $pdf->MultiCell(150, 0, 'Thru: ' . $thru, 0, 'L', false, 1);
+        }
         
         $pdf->SetFont('helvetica', 'B', 10);
         $pdf->SetXY(65, 115.6);

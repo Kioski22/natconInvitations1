@@ -174,6 +174,11 @@
       opacity: 0.75;
       transform: none;
     }
+    #sample{
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-style: italic;
+    }
 
     @media (max-width: 520px) {
       .card { padding: 1.75rem 1.5rem; }
@@ -228,6 +233,17 @@
           <textarea name="company_address" placeholder="Enter company address" required></textarea>
         </div>
         <div class="error-message" data-error-for="company_address"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Thru: 
+          <span class="hint">(Optional)</span>
+        </label>
+        <div class="input-wrapper">
+          <i class="fa-solid fa-users"></i>
+          <input type="text" name="thru">
+        </div>
+        <p id="sample">Single: Engr. Juan Dela Cruz, Executive Director <br> Multiple: Engr. Juan Dela Cruz, Executive Director; Engr. Maria Santos, Project Manager</p>
       </div>
 
       <div class="form-group">
